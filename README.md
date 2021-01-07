@@ -11,18 +11,18 @@ This library comes with multiple methods as well as quite a few properties that 
 	.stringify(json)	; Organizes code into one single line  
 	.readable(json)		; Organizes code into indented, readable lines  
 	.validate(json)		; Validates a json file and retruns true or fa  
-	.import()			; Returns JSON text from a file  
+	.import()		; Returns JSON text from a file  
 ```
 
 ## Properties  
 ```AutoHotkey
 	.indent_unit		; Set to the desired indent character(s). Default=Tab  
-	.no_indent			; Enables indenting of exported JSON files. Default=True  
+	.no_indent		; Enables indenting of exported JSON files. Default=True  
 	.ob_new_line		; Open brace is put on a new line. Default=True  
 	.cb_new_line		; Close brace is put on a new line. Default=True  
 	.ob_value_inline	; Open brace indented to match value indent. Default=False  
 	.cb_value_inline	; Close brace indented to match value indent. Default=False  
 	.ob_value_new		; First value is put on new line. Default=True  
-	.no_braces			; Messes up your teeth. Kidding. It removes all braces. Default=False  
+	.no_braces		; Messes up your teeth. Kidding. It removes all braces. Default=False  
 ```
 
