@@ -36,46 +36,85 @@ Class JSON_AHK
 	; Author:		0xB0BAFE77
 	; Created:		20200301
 	; Methods:
-	;	.to_JSON(ahk_object)		; Converts an AHK object and returns JSON text
-	;	.to_AHK(json_txt)			; Converts JSON text and returns an AHK object
-	;	.stringify(json_txt)		; Organizes code into one single line
-	;	.readable(json_txt)			; Organizes code into indented, readable lines
-	;	.validate(json_txt)			; Validates a json file and retruns true or false
-	;	.import()					; Returns JSON text from a file
+	;	.to_JSON(ahk_object)	; Converts an AHK object and returns JSON text
+	;	.to_AHK(json_txt)		; Converts JSON text and returns an AHK object
+	;	.stringify(json_txt)	; Organizes code into one single line
+	;	.readable(json_txt)		; Organizes code into indented, readable lines
+	;	.validate(json_txt)		; Validates a json file and retruns true or false
+	;	.import()				; Returns JSON text from a file
 	;
 	; Properties:
-	;	.json_indent				; True/False. Enables indenting of exported JSON files. Default=True
-	;	.json_indent_unit			; Set to the desired indent character(s). Default=1 tab
-	;	.json_ob_new_line			; If true, put first brace on new line. Default=True
-	;	.json_ob_value_inline			; If true, open brace and values are on same indent. Default=False
-	;	.json_ob_value_line		; If true, puts first value on same line as first brace. Default=False
-	;	.json_close_new_line		; If true, put last brace on new line. Default=True
-	;	.json_close_indent			; If true, end brace and values are on same indent. Default=False
-	;	.json_no_braces				; If true, Results in messed up teeth. Haha. It really just removes braces.
+	;	.indent_unit			; Set to the desired indent character(s). Default=1 tab
+	;	.no_brace_ws			; Remove whitespace from empty braces. Default = True
+	;	.no_brace_ws_all		; Remove whitespace from objects containing empty objects. Default = False
+	;	.no_indent				; Enable indenting of exported JSON files. Default=False
+	;	.no_braces				; Messes up your teeth. Kidding. It removes all braces. Default=False
+	;	.ob_new_line			; Open brace is put on a new line. Default=
+	;							; this:	"key1":[
+	;							; 			"string",
+	;							; vs:	"key1":
+	;							; 		[
+	;							; 			"string",
+	;							;
+	;	.ob_val_inline			; Open brace indented to match value indent.
+	;							; This setting is ignored when ob_new_line is set to false.
+	;							; this:	[
+	;							; 			"string",
+	;							; vs:		[
+	;							; 			"string",
+	;							;
+	;	.brace_val_same			; Brace and first value share same line. Default=
+	;							; this:	["string1",
+	;							; 			"string2",
+	;							; vs:	[
+	;							; 			"string1",
+	;							; 			"string2",
+	;							;
+	;	.cb_new_line			; ; Close brace is put on a new line. Default=
+	;							; this:		"string1",
+	;							; 			"string2"}
+	;							; vs:		"string1",
+	;							; 			"string2"
+	;							; 		}
+	;							;
+	;	.cb_val_inline			; ; Close brace indented to match value indent. Default=
+	;							; this:		"string1",
+	;							; 			"string2"
+	;							; 		}
+	;							; vs:		"string1",
+	;							; 			"string2"
+	;							; 			}
 	;=========================================================================================================
 	
-	;~ Static indent_unit		:= "`t"     ; Set to the desired indent character(s). Default=1 tab
-	;~ Static no_indent		:= False	; Enables indenting of exported JSON files. Default=True
-	;~ Static ob_new_line	:= True     ; Put first brace on new line. Default=
-	;~ Static ob_value_inline		:= False    ; Indent first brace to match values. Default=
-	;~ Static ob_value_line	:= False    ; Puts first value on same line as first brace. Default=
-	;~ Static close_new_line	:= False    ; Put last brace on new line. Default=
-	;~ Static close_indent		:= False    ; Indent last brace to match values. Default=
-	;~ Static no_braces		:= False    ; Messes up your teeth. Kidding. It removes all braces.
+	; User Settings
+	Static indent_unit		:= "`t"		; Set to the desired indent character(s). Default=1 tab
+	Static value_buffer		:= " "		; Set the character to follow object colons (if any). Default=Space
+	Static ob_new_line		:= True		; Open brace is put on a new line. Default=True
+	Static ob_val_inline	:= True		; Open brace indented to match value indent. Default=False
+	Static brace_val_same	:= True		; Brace and first value share same line. Default=True
+	Static cb_new_line		:= True		; Close brace is put on a new line. Default=True
+	Static cb_val_inline	:= True		; Close brace indented to match value indent. Default=False
+	Static no_brace_ws		:= True		; Remove whitespace from empty braces. Default = True
+	Static no_brace_ws_all	:= True		; Remove whitespace from objects containing empty objects. Default = False
+	Static no_indent		:= False	; Enable indenting of exported JSON files. Default=False
+	Static no_braces		:= False	; Messes up your teeth. Kidding. It removes all braces. Default=False
 	
-	Static 	indent_unit		:= "`t"     ; Set to the desired indent character(s). Default=1 tab
-	Static 	no_indent		:= False	; Enables indenting of exported JSON files. Default=True
-	Static 	ob_new_line		:= True     ; Open brace is put on a new line. Default=
-	Static 	cb_new_line		:= False    ; Close brace is put on a new line. Default=
-	Static 	ob_value_inline	:= False    ; Open brace indented to match value indent. Default=
-	Static 	cb_value_inline	:= False    ; Close brace indented to match value indent. Default=
-	Static 	ob_value_new		:= False    ; First value is put on new line. Default=
-	Static 	no_braces		:= False    ; Messes up your teeth. Kidding. It removes all braces.
+	;=========================================================================================================
+	Static regex_empty_b	:= "^\s*(\[|\{)( |\t|\n|\r)*?(\]|\})\s*$"	; RegEx for matching empty obj/arr
+	Static ws				:= " `t`n`r"					; Define whitespace
 	
 	; Import JSON file
 	import() {
-		FileSelectFile, path, 3,, Select JSON file, JSON (*.json)
+		FileSelectFile, path, 3,, Select a JSON file, JSON (*.json)
+		If (ErrorLevel = 1) {
+			this.basic_error("No file was selected.")
+			Return False
+		}
 		FileRead, json, % path
+		If (ErrorLevel = 1) {
+			this.basic_error("An error occurred when loading the file.`n" A_LastError)
+			Return False
+		}
 		Return json
 	}
 	
@@ -84,63 +123,109 @@ Class JSON_AHK
 		Return Trim(this.json_extract_obj(obj), " `t`n`r")
 	}
 	json_extract_obj(obj, i:=0) {
-		If !IsObject(obj)								; Kick back any non-objects
-			Return obj
 		
-		indent := ""									; Stores proper indent length
-		If !(this.no_indent)							; Sets indent based on settings
+		this.msg("this.is_array(obj): " this.is_array(obj) "`nthis.view_obj(obj): " this.view_obj(obj) )
+		
+		type 		:= this.is_array(obj) ? "a" : "o"	; Store obj/arr type
+		,brace_open	:= (this.no_braces ? ""				; Set opening brace
+						: type == "a" ? "["
+						: "{"	)
+		,brace_close:= (this.no_braces ? ""				; Set closing brace
+						: (type == "a") ?"]"
+						:"}"	)
+		,indent		:= ""								; Stores proper indent length
+		
+		If !(this.no_indent)							; Create adjusted indent
 			Loop, % i
 				indent .= this.indent_unit
 		
-		regex_e_arr		:= "^\[( |\t|\n|\r)*?\]$"		; RegEx for matching empty arrays
-		, regex_e_obj	:= "^\{( |\t|\n|\r)*?\}$"		; RegEx for matching empty objects
-		, ws			:= " `t`n`r"					; Define whitespace
-		, type 			:= this.is_array(obj)			; Track if object or array
-							? "a"
-							: "o"
-		, brace_open	:= (this.no_braces				; Set opening brace
-							? ""
-						: (type == "a")
-							? "["
-							: "{")
-		, brace_end		:= (this.no_braces				; Set closing brace
-							? ""
-						: (type == "a")
-							? "]"
-							: "}")
-		, str 			:= (this.ob_new_line			; Should the open brace be on a new line
-							? "`n"
-							: "")
-						. indent
-						. (this.ob_value_inline			; Should values and open brace be on the same indent
-							? this.indent_unit
-							: "")
-						. brace_open
+		str 		:= "`n"
+					. indent
+					. brace_open						; Start string
 		
 		For k, v in obj									; Loop through object and build list of values
-			str .= (A_Index = 1							; Should first line be on same line as brace
-					&& this.ob_value_line
-					? "`n"
+			str .= "`n" 
+				. indent . this.indent_unit
+				. (type == "o"
+					? k ":" this.value_buffer			; Include key if object
 					: "")
-				. indent this.indent_unit				; Indent line
-				. (type == "o" ? k ": " : "")			; Include key: if object
-				. this.json_extract_obj(v, i+1) 		; Extract value (func returns value if not obj)
+				. (IsObject(v)
+					? this.json_extract_obj(v, i+1)
+					: v	)
 				. ","									; Always add a comma
 		
 		str := RTrim(str, ",")  						; Trim off last comma and add end brace
-			. (this.close_new_line
-				? "`n"
-				: "")
-			. (this.close_indent
-				? indent
-				: "")
-			. (type == "a" ? "]" : "}")
+			. "`n"
+			. indent
+			. brace_close
 		
-		Return (str ~= regex_e_arr)						; If an empty array
-			? "[]"										; Send back 2 square braces
-		: (str ~= regex_e_obj)							; If an empty objec
-			? "{}"										; Send back 2 curly braces
-			: str
+		;~ ,str 			:= ((this.ob_new_line)			; Open brace on new line?
+							;~ ? "`n" indent ((this.ob_val_inline) ; Check if brace and values should be inline
+								;~ ? this.indent_unit
+								;~ : "")
+							;~ : "")
+						;~ . brace_open
+		
+		;~ For k, v in obj									; Loop through object and build list of values
+			;~ str .= (A_Index = 1	&& this.brace_val_same	; Should brace and value be on same line?
+					;~ ? ""
+					;~ : "`n" indent this.indent_unit)
+				;~ . (type == "o"							; Include key if object
+					;~ ? k ": "
+					;~ : "")
+				;~ . this.json_extract_obj(v, i+1) 		; Extract value (func returns value if not obj)
+				;~ . ","									; Always add a comma
+		
+		;~ str := RTrim(str, ",")  						; Trim off last comma and add end brace
+			;~ . (this.cb_new_line							; Should the closing brace be on a new line
+				;~ ? "`n"
+				;~ : "")
+			;~ . indent (this.cb_val_inline				; Closing brace on same indent as value
+				;~ ? this.indent_unit
+				;~ : "")
+			;~ . brace_close
+		/*
+		,this.no_brace_ws_all
+			? str := this.collapse_multiple_objects(str)	; Remove whitespace from empty objects of objects
+			: this.no_brace_ws								; Remove whitespace from empty object
+				&& (str ~= this.regex_empty_b)
+				? str := brace_open brace_close
+				: ""
+		*/
+		Return str
+	}
+	
+	collapse_multiple_objects(txt) {
+		orig	:= txt
+		,open_c	:= open_s := 0
+		,valid	:= True
+		,breaker:= False
+		,txt 	:= StrReplace(txt, " ", "")
+		,txt 	:= StrReplace(txt, ",", "")
+		,txt 	:= StrReplace(txt, "`t", "")
+		,txt 	:= StrReplace(txt, "`n", "")
+		,txt 	:= StrReplace(txt, "`r", "")
+		
+		While (!breaker)
+			char := SubStr(txt, A_Index, 1)
+			, InStr("{}", char)
+				? (char = "{")
+					? open_c++
+					: open_c--
+			: InStr("[]", char)
+				? (char = "[")
+					? open_s++
+					: open_s--
+			: (breaker := True
+				, valid := False)
+			
+			,(open_c < 0 || open_s < 0)
+				? valid := False
+				: (open_c = 0 && open_s = 0)
+					? breaker := True
+					: ""
+		
+		Return (valid ? txt : orig)
 	}
 	
 	; Converts a json file into a single string
@@ -372,21 +457,19 @@ Class JSON_AHK
 	
 	; Check if object is an array
 	is_array(obj) {
-		min =
-		offset = 0
+		min		:= ""
+		,offset	:= 0
 		For k, v in obj
-		{
-			min = %k%
-			Break
-		}
+			min := k
+		Until (A_Index > 0)
 		
 		If (min == 0)
-			offset = 1
+			offset++
 		Else If !(min == 1)
-			Return False
+			test_fail := True ; Return False
 		
 		For k, v in obj
-			If (min = A_Index - offset)
+			If (min == k - offset)
 				min++
 			Else Return False
 		
