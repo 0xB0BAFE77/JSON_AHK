@@ -1,4 +1,8 @@
+; Currently working on the string decoder
+; Trying to decode entire json string prior to parsing
+
 #SingleInstance Force
+
 #Warn
 #NoEnv
 #KeyHistory 0
@@ -12,10 +16,14 @@ ExitApp
 Esc::ExitApp
 
 test() {
-	FileRead, jtxt, D:\Scripts\JSON_Test_File.json
+	jtxt := ""
+;	FileRead, jtxt, D:\Scripts\JSON_Test_File.json
+	;FileRead, jtxt, C:\Users\TESTCENTER\Desktop\TCM\Tools\AHK\Scripts\JSON_Test_File.json
 	if (jtxt = "")
 		jtxt := json_ahk.import()
+	start := A_TickCount
 	obj		:= json_ahk.to_ahk(jtxt)
+	MsgBox, % "Time to convert to object: " A_TickCount-start " ms"
 	total	:= 0
 	i		:= 1
 	
@@ -24,7 +32,7 @@ test() {
 		str := JSON_AHK.to_json(obj)
 	total += A_TickCount
 	
-	;MsgBox, % "Time to convert: " total/i " ms"
+	MsgBox, % "Time to convert to JSON: " total/i " ms"
 	Clipboard := str
 	MsgBox, % str
 	Return
@@ -51,12 +59,12 @@ Class JSON_AHK
 	;	.no_brace_ws_all		; Remove whitespace from objects containing empty objects. Default = False
 	;	.no_indent				; Enable indenting of exported JSON files. Default=False
 	;	.no_braces				; Messes up your teeth. Kidding. It removes all braces. Default=False
-	;	.ob_new_line			; Open brace is put on a new line. Default=
+	;	.ob_new_line			; Open brace is put on a new line.
 	;							; True:		"key":
 	;							; 			[
 	;							; 				"value",
-	;							; False:	"key":[
-	;							; 				"value",
+	;							; False:	"key": [
+	;							; [Def]			"value",
 	;							;
 	;	.ob_val_inline			; Open brace indented to match value indent.
 	;							; This setting is ignored when ob_new_line is set to false.
@@ -67,7 +75,7 @@ Class JSON_AHK
 	;							; 			[
 	;							; 				"value",
 	;							;
-	;	.brace_val_same			; Brace and first value share same line. Default=
+	;	.brace_val_same			; Brace and first value share same line.
 	;							; True:		["value1",
 	;							; 			"value2",
 	;							; False:	[
@@ -78,38 +86,55 @@ Class JSON_AHK
 	;							; True:		"value1",
 	;							; 			"value2"
 	;							; 			}
-	;							; this:		"value1",
+	;							; False:	"value1",
 	;							; 			"value2"}
 	;							;
 	;	.cb_val_inline			; ; Close brace indented to match value indent. Default=
 	;							; True:			"value1",
 	;							; 				"value2"
 	;							; 				}
-	;							; False:		"string1",
-	;							; 				"string2"
-	;							; 			}
+	;							; False:		"value1",
+	;							; 				"value2"
+	;							; 			}	;							;
+	;	.comma_first_line		; ; Close brace indented to match value indent. Default=
+	;							; True:			"value1",
+	;							; 				"value2"
+	;							; False:		"value1"
+	;							; 				,"value2"
 	;=========================================================================================================
 	
 	; User Settings
-	Static indent_unit		:= "`t"		; Set to the desired indent character(s). Default=1 tab
-	Static ob_new_line		:= True		; Open brace is put on a new line. Default=True
-	Static ob_val_inline	:= True		; Open brace indented to match value indent. Default=False
-	Static brace_val_same	:= True		; Brace and first value share same line. Default=True
-	Static cb_new_line		:= True		; Close brace is put on a new line. Default=True
-	Static cb_val_inline	:= True		; Close brace indented to match value indent. Default=False
-	Static no_brace_ws		:= True		; Remove whitespace from empty braces. Default = True
-	Static no_brace_ws_all	:= True		; Remove whitespace from objects containing empty objects. Default = False
-	Static no_indent		:= False	; Enable indenting of exported JSON files. Default=False
-	Static no_braces		:= False	; Messes up your teeth. Kidding. It removes all braces. Default=False
+	Static	indent_unit			:= "`t"		; Default = `t		Set to the desired indent character(s)
+			,comma_first_line	:= True		; Default = True	Put comma on same line as value
+			,ob_new_line		:= True		; Default = True	Open brace is put on a new line
+			,ob_val_inline		:= False	; Default = False	Open brace indented to match value indent
+			,brace_val_same		:= False	; Default = False	Brace and first value share same line
+			,cb_new_line		:= False	; Default = True	Close brace is put on a new line
+			,cb_val_inline		:= False	; Default = False	Close brace indented to match value indent
+			,no_brace_ws		:= True		; Default = True	Remove whitespace from empty braces
+			,no_braces			:= False	; Default = False	Messes up your teeth. JK. It removes all braces
+	;Static no_brace_ws_all	:= True		; Remove whitespace from objects containing empty objects. Default = False
 	
 	;=========================================================================================================
-	; RegEx for matching empty obj/arr
-	Static regex_empty_b	:= "^\s*(\[|\{)( |\t|\n|\r)*?(\]|\})\s*$"
-	; Whitespace
-	Static ws				:= " `t`n`r"
+	
+	; JSON values
+	Static 	dq				:= Chr(0x22)
+			,is_ws			:= 	{" "	:True		; Space
+								,"`t"	:True		; Tab
+								,"`n"	:True		; Linefeed
+								,"`r"	:True	}	; Carriage Return
+			,esc_chars		:= 	{"\"""	:""""		; Double Quote
+								,"\\"	:"\"		; Backslash / Reverse Solidus
+								,"\/"	:"/"		; Slash / Solidus
+								,"\b"	:"`b"		; Backspace
+								,"\f"	:"`f"		; Formfeed
+								,"\n"	:"`n"		; Linefeed
+								,"\r"	:"`r"		; Carriage Return
+								,"\t"	:"`t"	}	; Tab
 	
 	; Import JSON file
 	import() {
+		Local
 		FileSelectFile, path, 3,, Select a JSON file, JSON (*.json)
 		If (ErrorLevel = 1) {
 			this.basic_error("No file was selected.")
@@ -126,76 +151,91 @@ Class JSON_AHK
 	
 	; Convert AHK object to JSON string
 	to_json(obj) {
-		Local
-		txt := this.extract_obj(obj)
-		Return Trim(txt, "`n,")
+		Return this.is_array(obj)
+			? Trim(this.extract_arr(obj), "`n,")
+		: IsObject(obj)
+			? Trim(this.extract_obj(obj), "`n,")
+		: this.basic_error("You did not supply a valid object or array")
 	}
 	extract_obj(obj, indent:="") {
-		type:= this.is_array(obj) ? "a"
-			: IsObject(obj) ? "o"
-			: "v"
-		,ob	:= (type == "a" ? "[" : "{")
-		,cb	:= (type=="a" ? "]" : "}")
-		,str:= "`n"
-			. indent
-			. ob
+		Local
+		str	:= (this.ob_new_line
+				? "`n" (this.ob_val_inline
+					? indent . this.indent_unit
+					: indent)
+				: "")
+			. "{"
 		
 		For key, value in obj
-			str .= (IsObject(value)
-				? (type == "o" ? key ": " : "")
-				. this.extract_obj(value, indent this.indent_unit)
-			: "`n"
+			str .= "`n"
 				. indent
 				. this.indent_unit
-				. (type == "o" ? key ": " : "")
-				. value
-				. ","	)
+				. key ": " 
+				. (this.is_array(value)
+					? this.extract_arr(value
+						, indent . this.indent_unit)
+				: IsObject(value)
+					? this.extract_obj(value
+						, indent . this.indent_unit)
+				: (SubStr(value, 1, 1) == this.dq
+					? this.esc_char_decode(value)
+					: value	))
+				. ","
 		
 		str := RTrim(str, ",")  						; Trim off last comma
-			. "`n" indent cb ","
+			. "`n"
+			. indent
+			. "}"
+		,(this.no_brace_ws								; Remove whitespace from empty object
+			&& str ~= "^\s*\{[ |\t|\n|\r]*\},?\s*$")
+			? str	:= "`n"
+					. indent
+					. "{}"
+			: ""
 		
 		Return str
+	}
+	extract_arr(obj, indent:="") {
+		Local
+		str	:= (this.ob_new_line
+				? "`n" (this.ob_val_inline
+					? indent . this.indent_unit
+					: indent)
+				: "")
+			. "["
 		
+		For key, value in obj
+			str .= "`n"
+				. indent
+				. this.indent_unit
+				. (this.is_array(value)
+					? this.extract_arr(value
+						, indent . this.indent_unit)
+				: IsObject(value)
+					? this.extract_obj(value
+						, indent . this.indent_unit)
+				: (SubStr(value, 1, 1) == this.dq
+					? this.esc_char_encode(value)
+					: value	))
+				. ","
 		
+		str := RTrim(str, ",")  						; Trim off last comma
+				. "`n"
+				. indent
+				. "]"
 		
+		, this.no_brace_ws								; Remove whitespace from empty array
+			&& (str ~= "^\s*\[[ |\t|\n|\r]*\],?\s*$")
+			? str	:= "`n"
+					. indent
+					. "[]"
+			: ""
 		
-		;~ ,str 			:= ((this.ob_new_line)			; Open brace on new line?
-							;~ ? "`n" indent ((this.ob_val_inline) ; Check if brace and values should be inline
-								;~ ? this.indent_unit
-								;~ : "")
-							;~ : "")
-						;~ . brace_open
-		
-		;~ For k, v in obj									; Loop through object and build list of values
-			;~ str .= (A_Index = 1	&& this.brace_val_same	; Should brace and value be on same line?
-					;~ ? ""
-					;~ : "`n" indent this.indent_unit)
-				;~ . (type == "o"							; Include key if object
-					;~ ? k ": "
-					;~ : "")
-				;~ . this.extract_obj(v, i+1) 		; Extract value (func returns value if not obj)
-				;~ . ","									; Always add a comma
-		
-		;~ str := RTrim(str, ",")  						; Trim off last comma and add end brace
-			;~ . (this.cb_new_line							; Should the closing brace be on a new line
-				;~ ? "`n"
-				;~ : "")
-			;~ . indent (this.cb_val_inline				; Closing brace on same indent as value
-				;~ ? this.indent_unit
-				;~ : "")
-			;~ . brace_close
-		/*
-		,this.no_brace_ws_all
-			? str := this.collapse_multiple_objects(str)	; Remove whitespace from empty objects of objects
-			: this.no_brace_ws								; Remove whitespace from empty object
-				&& (str ~= this.regex_empty_b)
-				? str := brace_open brace_close
-				: ""
-		*/
 		Return str
 	}
 	
 	collapse_multiple_objects(txt) {
+		Local
 		orig	:= txt
 		,open_c	:= open_s := 0
 		,valid	:= True
@@ -228,7 +268,7 @@ Class JSON_AHK
 	
 	; Converts a json file into a single string
 	stringify(json) {
-		
+		Local
 		/* Account for objects or text
 		If IsObj(json)
 			; Convert obj
@@ -278,6 +318,7 @@ Class JSON_AHK
 	
 	; Convert json text to an ahk object
 	to_ahk(json){
+		Local
 		; Loop parse method
 		obj			:= {}			; Main object to build and return
 		,path		:= []			; Path value should be stored in the object
@@ -313,8 +354,9 @@ Class JSON_AHK
 						,num : "(?P<str>(?>-?(?>0|[1-9][0-9]*)(?>\.[0-9]+)?(?>[eE][+-]?[0-9]+)?))"
 						,tfn : "(?P<str>true|false|null)"}
 		
+		json := this.string_decode(json)
+		
 		While (index < char_total)
-		{
 			; Get next char
 			char := SubStr(json, ++index, 1)
 			; Skip all non-string whitespace
@@ -327,7 +369,7 @@ Class JSON_AHK
 					; Get data and validate
 					? RegExMatch(json, regex_arr[is_value[char]], match_, index)
 						; If valid, add it
-						? (obj[path*] := match_str
+						? (obj[path*] := match_str ; (char == """" ? this.string_decode(match_str) : match_str)
 							, index += StrLen(match_) - 1
 							, do_next := "e"	)
 						; If notv valid, throw an error
@@ -408,43 +450,60 @@ Class JSON_AHK
 					. "`n`te - Ending"
 					. "`n`tk - Key"
 					. "`n`tv - Value"
-				, do_next)
-		}
+				, do_next)		While (index < char_total)
+		
 		Return obj
 	}
 	
-	; Converts JSON escape characters
-	decode_esc_chars(txt) {
-		esc_chars	:=	{"\/"	: "/"		; Slash\Solidus
-						,"\\"	: "\"		; Backslash\Reverse Solidus
-						,"\"""	: """"		; Double Quotes
-						,"\b"	: "`b"		; Backspace
-						,"\f"	: "`f"		; Formfeed
-						,"\n"	: "`n"		; Linefeed
-						,"\r"	: "`r"		; Carriage return
-						,"\t"	: "`t"	}	; Horizontal Tab
+	; Decodes all JSON escape chars to actual char
+	string_decode(txt) {
+		Local
+		num	:= last := ""
+		,str:= txt
 		
-		For replace, find in esc_chars
-			txt := StrReplace(txt, find, replace)
+		; If no escape chars, why bother?
+		;If !InStr(txt, "\")
+			;Return txt
 		
-		Return txt
+		txt:= StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(txt
+			,"\b"	,"`b")
+			,"\f"	,"`f")
+			,"\n"	,"`n")
+			,"\r"	,"`r")
+			,"\t"	,"`t")
+			,"\"""	,"""")
+			,"\/"	,"/")
+			,"\\"	,"\")
+		
+		Loop, Parse, % str								; Read through each char
+			(last=="\") && (A_LoopField == "u")			; If \u is found
+				? (num := SubStr(str, A_Index+1, 4)		; Capture the 4 chars after it
+					, (num >= 0x0000 && num <= 0xFFFF)	; Check if hex falls w/in hex range
+						? txt := StrReplace(txt			; If yes, replace code with real char
+							, "\u" num
+							, Chr(num))
+						: Continue)
+				: Continue 
+			,last := A_LoopField
+		
+		Return 
 	}
 	
-	; Converts JSON escape characters
-	encode_esc_chars(txt) {
-		esc_chars	:=	{"\/"	: "/"		; Slash\Solidus
-						,"\\"	: "\"		; Backslash\Reverse Solidus
-						,"\"""	: """"		; Double Quotes
-						,"\b"	: "`b"		; Backspace
-						,"\f"	: "`f"		; Formfeed
-						,"\n"	: "`n"		; Linefeed
-						,"\r"	: "`r"		; Carriage return
-						,"\t"	: "`t"	}	; Horizontal Tab
+	; Encodes specific chars to escaped chars
+	esc_char_encode(txt) {
+		Local
 		
-		For find, replace in esc_chars
-			txt := StrReplace(txt, find, replace)
+		txt	:= 
+		,txt:= StrReplace(SubStr(txt, 2, -1), "\",	 "\\")	; Backslash / Reverse Solidus
+		,txt:= StrReplace(txt, "/",	 "\/")	; Slash / Solidus
+		,txt:= StrReplace(txt, """", "\""")	; Double Quote
+		,txt:= StrReplace(txt, "`t", "\t")	; Tab
+		,txt:= StrReplace(txt, "`r", "\r")	; Carriage Return
+		,txt:= StrReplace(txt, "`n", "\n")	; Linefeed
+		,txt:= StrReplace(txt, "`f", "\f")	; Formfeed
+		,txt:= StrReplace(txt, "`b", "\b")	; Backspace
 		
-		Return txt
+		Return (this.dq . txt . this.dq)
 	}
 	
 	;==============================\
@@ -478,7 +537,7 @@ Class JSON_AHK
 	
 	basic_error(msg) {
 		MsgBox, % msg
-		Return
+		Return False
 	}
 	
 	error(txt, index, msg, expected, found, extra:="", offset:=90) {
@@ -549,4 +608,3 @@ Class JSON_AHK
 		Return
 	}	
 }
-
