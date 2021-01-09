@@ -12,7 +12,9 @@ ExitApp
 Esc::ExitApp
 
 test() {
-	jtxt	:= JSON_AHK.import()
+	FileRead, jtxt, D:\Scripts\JSON_Test_File.json
+	if (jtxt = "")
+		jtxt := json_ahk.import()
 	obj		:= json_ahk.to_ahk(jtxt)
 	total	:= 0
 	i		:= 1
@@ -22,7 +24,7 @@ test() {
 		str := JSON_AHK.to_json(obj)
 	total += A_TickCount
 	
-	MsgBox, % "Time to convert: " total/i " ms"
+	;MsgBox, % "Time to convert: " total/i " ms"
 	Clipboard := str
 	MsgBox, % str
 	Return
@@ -50,45 +52,46 @@ Class JSON_AHK
 	;	.no_indent				; Enable indenting of exported JSON files. Default=False
 	;	.no_braces				; Messes up your teeth. Kidding. It removes all braces. Default=False
 	;	.ob_new_line			; Open brace is put on a new line. Default=
-	;							; this:	"key1":[
-	;							; 			"string",
-	;							; vs:	"key1":
-	;							; 		[
-	;							; 			"string",
+	;							; True:		"key":
+	;							; 			[
+	;							; 				"value",
+	;							; False:	"key":[
+	;							; 				"value",
 	;							;
 	;	.ob_val_inline			; Open brace indented to match value indent.
 	;							; This setting is ignored when ob_new_line is set to false.
-	;							; this:	[
-	;							; 			"string",
-	;							; vs:		[
-	;							; 			"string",
+	;							; True:		"key":
+	;							; 				[
+	;							; 				"value",
+	;							; False:	"key":
+	;							; 			[
+	;							; 				"value",
 	;							;
 	;	.brace_val_same			; Brace and first value share same line. Default=
-	;							; this:	["string1",
-	;							; 			"string2",
-	;							; vs:	[
-	;							; 			"string1",
-	;							; 			"string2",
+	;							; True:		["value1",
+	;							; 			"value2",
+	;							; False:	[
+	;							; 			"value1",
+	;							; 			"value2",
 	;							;
 	;	.cb_new_line			; ; Close brace is put on a new line. Default=
-	;							; this:		"string1",
-	;							; 			"string2"}
-	;							; vs:		"string1",
-	;							; 			"string2"
-	;							; 		}
+	;							; True:		"value1",
+	;							; 			"value2"
+	;							; 			}
+	;							; this:		"value1",
+	;							; 			"value2"}
 	;							;
 	;	.cb_val_inline			; ; Close brace indented to match value indent. Default=
-	;							; this:		"string1",
-	;							; 			"string2"
-	;							; 		}
-	;							; vs:		"string1",
-	;							; 			"string2"
+	;							; True:			"value1",
+	;							; 				"value2"
+	;							; 				}
+	;							; False:		"string1",
+	;							; 				"string2"
 	;							; 			}
 	;=========================================================================================================
 	
 	; User Settings
 	Static indent_unit		:= "`t"		; Set to the desired indent character(s). Default=1 tab
-	Static value_buffer		:= " "		; Set the character to follow object colons (if any). Default=Space
 	Static ob_new_line		:= True		; Open brace is put on a new line. Default=True
 	Static ob_val_inline	:= True		; Open brace indented to match value indent. Default=False
 	Static brace_val_same	:= True		; Brace and first value share same line. Default=True
@@ -100,8 +103,10 @@ Class JSON_AHK
 	Static no_braces		:= False	; Messes up your teeth. Kidding. It removes all braces. Default=False
 	
 	;=========================================================================================================
-	Static regex_empty_b	:= "^\s*(\[|\{)( |\t|\n|\r)*?(\]|\})\s*$"	; RegEx for matching empty obj/arr
-	Static ws				:= " `t`n`r"					; Define whitespace
+	; RegEx for matching empty obj/arr
+	Static regex_empty_b	:= "^\s*(\[|\{)( |\t|\n|\r)*?(\]|\})\s*$"
+	; Whitespace
+	Static ws				:= " `t`n`r"
 	
 	; Import JSON file
 	import() {
@@ -112,7 +117,8 @@ Class JSON_AHK
 		}
 		FileRead, json, % path
 		If (ErrorLevel = 1) {
-			this.basic_error("An error occurred when loading the file.`n" A_LastError)
+			this.basic_error("An error occurred when loading the file."
+				. "`n" A_LastError)
 			Return False
 		}
 		Return json
@@ -120,44 +126,38 @@ Class JSON_AHK
 	
 	; Convert AHK object to JSON string
 	to_json(obj) {
-		Return Trim(this.json_extract_obj(obj), " `t`n`r")
+		Local
+		txt := this.extract_obj(obj)
+		Return Trim(txt, "`n,")
 	}
-	json_extract_obj(obj, i:=0) {
-		
-		this.msg("this.is_array(obj): " this.is_array(obj) "`nthis.view_obj(obj): " this.view_obj(obj) )
-		
-		type 		:= this.is_array(obj) ? "a" : "o"	; Store obj/arr type
-		,brace_open	:= (this.no_braces ? ""				; Set opening brace
-						: type == "a" ? "["
-						: "{"	)
-		,brace_close:= (this.no_braces ? ""				; Set closing brace
-						: (type == "a") ?"]"
-						:"}"	)
-		,indent		:= ""								; Stores proper indent length
-		
-		If !(this.no_indent)							; Create adjusted indent
-			Loop, % i
-				indent .= this.indent_unit
-		
-		str 		:= "`n"
-					. indent
-					. brace_open						; Start string
-		
-		For k, v in obj									; Loop through object and build list of values
-			str .= "`n" 
-				. indent . this.indent_unit
-				. (type == "o"
-					? k ":" this.value_buffer			; Include key if object
-					: "")
-				. (IsObject(v)
-					? this.json_extract_obj(v, i+1)
-					: v	)
-				. ","									; Always add a comma
-		
-		str := RTrim(str, ",")  						; Trim off last comma and add end brace
-			. "`n"
+	extract_obj(obj, indent:="") {
+		type:= this.is_array(obj) ? "a"
+			: IsObject(obj) ? "o"
+			: "v"
+		,ob	:= (type == "a" ? "[" : "{")
+		,cb	:= (type=="a" ? "]" : "}")
+		,str:= "`n"
 			. indent
-			. brace_close
+			. ob
+		
+		For key, value in obj
+			str .= (IsObject(value)
+				? (type == "o" ? key ": " : "")
+				. this.extract_obj(value, indent this.indent_unit)
+			: "`n"
+				. indent
+				. this.indent_unit
+				. (type == "o" ? key ": " : "")
+				. value
+				. ","	)
+		
+		str := RTrim(str, ",")  						; Trim off last comma
+			. "`n" indent cb ","
+		
+		Return str
+		
+		
+		
 		
 		;~ ,str 			:= ((this.ob_new_line)			; Open brace on new line?
 							;~ ? "`n" indent ((this.ob_val_inline) ; Check if brace and values should be inline
@@ -173,7 +173,7 @@ Class JSON_AHK
 				;~ . (type == "o"							; Include key if object
 					;~ ? k ": "
 					;~ : "")
-				;~ . this.json_extract_obj(v, i+1) 		; Extract value (func returns value if not obj)
+				;~ . this.extract_obj(v, i+1) 		; Extract value (func returns value if not obj)
 				;~ . ","									; Always add a comma
 		
 		;~ str := RTrim(str, ",")  						; Trim off last comma and add end brace
@@ -200,12 +200,11 @@ Class JSON_AHK
 		,open_c	:= open_s := 0
 		,valid	:= True
 		,breaker:= False
-		,txt 	:= StrReplace(txt, " ", "")
-		,txt 	:= StrReplace(txt, ",", "")
-		,txt 	:= StrReplace(txt, "`t", "")
-		,txt 	:= StrReplace(txt, "`n", "")
-		,txt 	:= StrReplace(txt, "`r", "")
 		
+		Loop, Parse, % " ,`t`n`r"
+			txt := StrReplace(txt, A_LoopField, "")
+		
+		;; did i include commas between multiple objects?
 		While (!breaker)
 			char := SubStr(txt, A_Index, 1)
 			, InStr("{}", char)
@@ -218,7 +217,6 @@ Class JSON_AHK
 					: open_s--
 			: (breaker := True
 				, valid := False)
-			
 			,(open_c < 0 || open_s < 0)
 				? valid := False
 				: (open_c = 0 && open_s = 0)
@@ -240,9 +238,9 @@ Class JSON_AHK
 		
 		; Convert text
 		str			:= ""
+		,VarSetCapacity(str, 10000)
 		,char		:= ""
 		,last		:= ""
-		,VarSetCapacity(str, 10240)
 		,max_chars	:= StrLen(json)
 		,in_string	:= False
 		,index		:= 0
@@ -278,7 +276,7 @@ Class JSON_AHK
 		Return
 	}
 	
-	; Convert json text in an ahk object
+	; Convert json text to an ahk object
 	to_ahk(json){
 		; Loop parse method
 		obj			:= {}			; Main object to build and return
@@ -459,21 +457,23 @@ Class JSON_AHK
 	is_array(obj) {
 		min		:= ""
 		,offset	:= 0
+		,pass	:= True
+		
 		For k, v in obj
 			min := k
-		Until (A_Index > 0)
+		Until (A_Index)
 		
-		If (min == 0)
-			offset++
-		Else If !(min == 1)
-			test_fail := True ; Return False
+		(min == 0) ? offset++
+			: !(min == 1) ? pass := False
+			: ""
 		
 		For k, v in obj
 			If (min == k - offset)
 				min++
-			Else Return False
+			Else pass := False
+		Until (pass == False)
 		
-		Return True
+		Return pass
 	}
 	
 	basic_error(msg) {
