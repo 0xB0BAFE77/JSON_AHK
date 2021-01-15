@@ -361,11 +361,15 @@ Class JSON_AHK
 							,exp	: "string number true false null object array"}
 					,cma	:{msg	: "Values must be followed by a comma or an appropriate closing brace."
 							,exp	: ",]}"}
-					,cln	:{msg	: "Object values and pairs must be separated by a colon."
-							,exp	: ":"}
 					,obj	:{msg	: "Invalid key or closing to object."
 							,exp	: "See JSON.org for rules on object keys [strings]."}
-					,jsn	:{msg	: "Invalid JSON file.`nJSON data starts with a brace."
+					,dbg	:{msg	: "Invalid next var."
+							,exp	: "You messed up. Fix it."}
+					,cla	:{msg	: "Arrays must have either a comma or a closing square brace after a value."
+							,exp	: ", ]"}
+					,clo	:{msg	: "Objects must have either a comma or a closing square brace after a value."
+							,exp	: ", ]"}
+					,jsn	:{msg	: "A JSON payload should be an object or array, not a string."
 							,exp	: "[ {"}	}
 		; Value validator and regex key assigner
 		,is_val :=	{"0"	:"n"	,"5":"n"	,0	:"n"	,5	:"n"	,"-" :"n"
@@ -374,93 +378,56 @@ Class JSON_AHK
 					,"3"	:"n"	,"8":"n"	,3	:"n"	,8	:"n"	,"n" :"b"
 					,"4"	:"n"	,"9":"n"	,4	:"n"	,9	:"n"	,"""":"s"	}
 		
-		Loop {
-			char := SubStr(json, ++i, 1)
+		While ( (char := SubStr(json, ++i, 1)) != "") {
+			
 			If is_ws[char]
 				Continue
+			MsgBox, % "char: " char "`ni: " i "`nnext: " next 
 			
-			(next == "s")
-				? is_new[char]
-					? next := is_new[char]
-				: this.error(json, i, err.jsn.msg, err.jsn.exp, char)
+			(next == "v")
+				? is_val[char]
+					? RegExMatch(json, rgx[is_val[char]], m_, i)
+						? (obj[path*] := m_str, i+=StrLen(m_)-1, next:="c") ; decode here
+					: this.error(json, i, err.snb.msg, err.snb.exp, SubStr(json, i-10, 21))
+				? (next := is_new[char])
+					? obj[path*] := {}
+				: this.error(json, i, err.val.msg, err.val.exp, char)
+			: (next == "k")
+				: RegExMatch(json, rgx.k, m_, i)
+					? (path.Push(m_str), path_a.Push(False), i+=StrLen(m_)-1, next:="v")
+				: this.error(json, i, err.key.msg, err.key.exp, SubStr(json, i-10, 21))
 			: (next == "o")
 				? (char == "}")
-					? (obj[path*] := {}, next := "c")
-				? RegExMatch(json, rgx.s, m_, i)
-					? (obj[path*] := {}, path.Push(m_str), path_a.Push(False), next := ":")
-				: this.error(json, i, err.obj.msg, err.obj.exp, char)
+					? (next := "c")
+				: RegExMatch(json, rgx.k, m_, i)
+					? (path.Push(m_str), path_a.Push(False), i+=StrLen(m_)-1, next:="v")
+				: this.error(json, i, err.obj.msg, err.obj.exp, SubStr(json, i-10, 21))
 			: (next == "a")
 				? (char == "]")
-					? (obj[path] := [], next := "c")
-				: (obj[path] := [], path.Push(1), path_a.Push(True), next := "v")
-			: (next == ":")
-				? (char == ":")
-					? next := "v"
-				: this.error(json, i, err.cln.msg, err.cln.exp)
+					? (next := "c")
+				: (path.Push(1), path_a.Push(True), i--, next := "v")
 			: (next == "c")
-				? (char == ",")
-					? ()
-				: this.error(json, i,)
+				? path_a[path_a.MaxIndex()]
+					? (char == ",")
+						? (path[path.MaxIndex()]++, next := "v")
+					: char == "]"
+						? (path.Pop(), path_a.Pop())
+					: this.error(json, i, err.cla.msg, err.cla.exp, char)
+				: (char == ",")
+						? (path.Pop(), path_a.Pop(), next := "k")
+				: (char == "}")
+					? (path.Pop(), path_a.Pop())
+				: this.error(json, i, err.clo.msg, err.clo.exp, char)
+			: (next == "s")
+				? (is_new[char])
+					? (obj[path*] := {}, next := is_new[char])
+				: this.error(json, i, err.jsn.msg, err.jsn.exp, char)
+			: this.error(json, i, err.dbg.msg, err.dbg.exp, next)
 		}
 		
-		Return obj
-		
-			;MsgBox, % "char: " char "`ni: " i "`nnext: " next 
-			If (next == "v")
-				(is_val[char])
-					? RegExMatch(json, rgx[is_val[char]], m_, i)
-						? (obj[path*] := m_str ;(is_val[char] == "s" ? this.string_decode(m_str) : m_str)
-							, i += StrLen(m_str)-1, next := "c"	)
-					: this.error(json, i, err.snb.msg, err.snb.exp)
-				: (is_new[char])
-					? next := is_new[char]
-				: this.error(json, i, err.val.msg, err.val.exp, char)
-			
-			Else If (next == "c")
-				(char == ",")
-					? path_a[path_a.MaxIndex()]
-						? (path[path.MaxIndex()]++, next := "v"	)
-					: (path.Pop(), path_a.Pop(), next := "k")
-				: (char == "}" && !path_a[path_a.MaxIndex()])
-					|| (char == "]" && path_a[path_a.MaxIndex()])
-					? (path.Pop(), path_a.Pop())
-				: this.error(json, i, err.cma.msg, err.cma.exp, char)
-			
-			Else If (next == "k")
-				RegExMatch(json, rgx.k, m_, i)
-					? (path.Push(m_str), path_a.Push(false), i += StrLen(m_)-1, next := "v")
-				: this.error(json, i, err.key.msg, err.key.value, char)
-			
-			Else If (next == "a"){
-				MsgBox, % "next: " next "`ni: " i "`nchar: " char 
-				If (char == "]")
-					obj[path*] := []
-					, next := "c"
-				Else 
-					obj[path*] := []
-					, path.Push(1)
-					, path_a.Push(True)
-					, i--
-					, next := "v"
-			}
-			
-			Else If (next == "o")
-				(char == "}")
-					? (obj[path*] := {}, next := "c")
-				: (i--, next := "k")
-			
-			Else If (next == "s")
-				is_new[char]
-					? next := is_new[char]
-				: this.error(json, i, err.jsn.msg, err.jsn.exp, char)
-			
-			Else this.msg("bad next.`nFound: " next)
-			
-		} Until (i >= max)
-		Clipboard := test
 		MsgBox on clipboard
 		
-		;MsgBox, % this.view_obj(obj)
+		MsgBox, % this.view_obj(obj)
 		Return obj
 	}
 	
@@ -608,5 +575,4 @@ Class JSON_AHK
 		Return
 	}	
 }
-
 
