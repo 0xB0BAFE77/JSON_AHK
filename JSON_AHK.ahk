@@ -1,6 +1,7 @@
 #SingleInstance Force
 #Warn
 #NoEnv
+#MaxMem 1024
 #KeyHistory 0
 SetBatchLines, -1
 ListLines, Off
@@ -19,26 +20,49 @@ test() {
 	; Base: 		2.978 sec
 	; 
 	; 
+	; to_json: Using obj/arr parse funcs vs one func with an extra object/array check
+	; Obj/Arr funcs.		file 25MB		i=5		time=10.1 sec
+	; One func ex check		file 25MB		i=5		time=6.7 sec
+	;
+	; to_json: Increase of adding in escape converter
+	; Base:			 		file 25MB		i=5		time=6.72 sec
+	; With conversion:		file 25MB		i=5		time=7.6 sec
+	;
+	; to_json: Checking if \ is in string before running strreplace
+	; Before:		 		file 25MB		i=5		time=7.6 sec
+	; After:				file 25MB		i=5		time=6.5 sec
+	;
+	; to_json: Testing if doing the instr check outside the function call is faster
+	; Inside func:	 		file 25MB		i=5		time=6.5 sec
+	; Outside func:			file 25MB		i=5		time=6.39
+	;
+	; to_ahk: 
+	; Base:	 				file 25MB		i=5		time=2.9 sec
+	; Outside func:			file 25MB		i=5		time=6.39
+	;
+	; to_json:
+	; Base:					file 25MB		i=5		9.5
+	; Compressing for loop	file 25MB		i=5
+	
+	
+	
 	obj := {}
 	jtxt := json_ahk.import()
-	i := 10
+	i := 5
 	
 	qpx(1)
 	Loop, % i
 		obj := json_ahk.to_ahk(jtxt) ;json_ahk.json_table(jtxt)
 	t1 := qpx(0)
 	
-	MsgBox, % "[qpx]to_ahk convert time: " t1/i " sec"
-	
-	MsgBox, % json_ahk.view_obj(obj)
-	
 	qpx(1)
 	Loop, % i
 		json := json_ahk.to_json(obj) ;json_ahk.json_table(jtxt)
-	t1 := qpx(0)
+	t2 := qpx(0)
 	
 	Clipboard := json
-	MsgBox, % "[qpx]to_json convert time: " t1/i " sec"
+	MsgBox, % "[qpx]to_ahk convert time: " t1/i " sec"
+			. "`n[qpx]to_json convert time: " t2/i " sec"
 	
 	Return
 }
@@ -111,27 +135,23 @@ Class JSON_AHK
 	;							; 				}
 	;							; False:		"value1",
 	;							; 				"value2"
-	;							; 			}	;							;
-	;	.comma_first_line		; ; Close brace indented to match value indent. Default=
-	;							; True:			"value1",
-	;							; 				"value2"
-	;							; False:		"value1"
-	;							; 				,"value2"
+	;							; 			}	;
 	;=========================================================================================================
 	
-	; User Settings							;Default|
-	Static	indent_unit			:= "`t"		; `t	| Set to the desired indent character(s)
-			,comma_first_line	:= True		; True	| Put comma on same line as value
-			,ob_new_line		:= True		; True	| Open brace is put on a new line
-			,ob_val_inline		:= False	; False	| Open brace indented to match value indent
-			,brace_val_same		:= False	; False	| Brace and first value share same line
-			,cb_new_line		:= True		; True	| Close brace is put on a new line
-			,cb_val_inline		:= False	; False	| Close brace indented to match value indent
-			,no_brace_ws		:= True		; True	| Remove whitespace from empty braces
-			,no_braces			:= False	; False	| Messes up your teeth. JK. It removes all braces
-			,remove_quotes		:= False	; False	| Removes surrounding quotation marks from strings
-	;Static no_brace_ws_all	:= True		; Remove whitespace from objects containing empty objects. Default = False
-	
+    ; User Settings                       ;Default|
+    Static indent_unit        := "`t"     ; `t    | Set to the desired indent character(s)
+           ,ob_new_line       := True     ; True  | Open brace is put on a new line
+           ,ob_val_inline     := False    ; False | Open brace indented to match value indent
+           ,brace_val_same    := False    ; False | Brace and first value share same line
+           ,cb_new_line       := True     ; True  | Close brace is put on a new line
+           ,cb_val_inline     := False    ; False | Close brace indented to match value indent
+           ,no_brace_ws       := True     ; True  | Remove whitespace from empty braces
+           ,no_braces         := False    ; False | Messes up your teeth. JK. It removes all braces
+           ,remove_quotes     := False    ; False | Removes surrounding quotation marks from strings
+		   ; not implemented yet
+		   ,esc_slash         := False    ; False | Escapes forward slashes when exporting JSON
+    ;Static no_brace_ws_all    := True        ; Remove whitespace from objects containing empty objects. Default = False
+    
 	;=========================================================================================================
 	
 	; JSON values
@@ -148,6 +168,8 @@ Class JSON_AHK
 						,"n"	:"`n"		; Linefeed
 						,"r"	:"`r"		; Carriage Return
 						,"t"	:"`t"	}	; Tab
+			,rgx	:=	{"e_arr":"^\s*\[[ \t\r\n]*\]\s*$"
+						,"e_obj":"^\s*\{[ \t\r\n]*\}\s*$"}
 	
 	; Import JSON file
 	import() {
@@ -170,121 +192,73 @@ Class JSON_AHK
 	
 	; Convert AHK object to JSON string
 	to_json(obj, ind:="") {
-		Return this.is_array(obj)
-			? Trim(this.extract_arr(obj), "`n,")
-		: IsObject(obj)
-			? Trim(this.extract_obj(obj), "`n,")
+		Return IsObject(obj)
+			? LTrim(this.to_json_extract(obj, this.is_array(obj)), "`n")
 		: this.basic_error("You did not supply a valid object or array")
 	}
-	extract_obj(obj, ind:="") {
+	to_json_extract(obj, type, ind:="") {
 		Local
-		ind_big := ind . this.indent_unit
-		str	:= (this.ob_new_line
-				? "`n" (this.ob_val_inline
-					? ind_big : ind)
-				: "")
-			. "{"
+		
+		ind_big := ind . this.indent_unit									; Set big indent
+		,str	:= (this.ob_new_line										; Build beginning of arr/obj
+					? "`n" (this.ob_val_inline ? ind_big : ind)
+					: "")
+				. (type ? "[" : "{")
+		
+		;~ For key, value in obj
+			;~ str .= (this.is_array(value)
+					;~ ? (type ? "" : (this.brace_val_same ? "`n" ind_big : "") key " : ")
+						;~ . this.to_json_extract(value, 1, ind_big)
+				;~ : IsObject(value)											; If object
+					;~ ? (type ? "" : key ": ")								; Add key and get object values
+						;~ . this.to_json_extract(value, 0, ind_big)
+				;~ : ind_big (type ? "" : key ": ")						; Otherwise, add value
+					;~ . (InStr(value, """")
+						;~ ? ("""" StrReplace(StrReplace(StrReplace(""
+						;~ . StrReplace(StrReplace(StrReplace(StrReplace(""
+						;~ . StrReplace(SubStr(value, 2, -1) ,"\","\\" )
+						;~ ,"`b","\b"),"`f","\f"),"`n","\n"),"`r","\r")
+						;~ ,"`t","\t"),"""","\"""),"\\u","\u") """")
+					;~ : value ) )												; Otherwise, add value
+				;~ . ","														; Always add a comma
 		
 		For key, value in obj
-			this.msg("key: " key "`nvalue: " value "`nvalue is object: " IsObject(value) "`nstr: " str)
-			,str	.= "`n" ind_big key " : "
-				. ((this.is_array(value))
-					? this.extract_arr(value, ind_big)
-				: (IsObject(value))
-					? this.extract_obj(value, ind_big)
-				: (SubStr(value, 1, 1) == """")
-					? value ;this.esc_char_encode(value)
-					: value	)
-				. ","
-		MsgBox, % "string after loop before cap:`n`n" str
+			str .= (this.is_array(value)
+					? (type ? "" 
+					: (this.brace_val_same ? "" : "`n" ind_big) key ": ")
+					. this.to_json_extract(value, 1, ind_big)
+				: IsObject(value)											; If object
+					? (type ? "" : key ": ")								; Add key and get object values
+						. this.to_json_extract(value, 0, ind_big)
+				: ind_big (type ? "" : key ": ")						; Otherwise, add value
+					. (InStr(value, """")
+						? ("""" StrReplace(StrReplace(StrReplace(""
+						. StrReplace(StrReplace(StrReplace(StrReplace(""
+						. StrReplace(SubStr(value, 2, -1) ,"\","\\" )
+						,"`b","\b"),"`f","\f"),"`n","\n"),"`r","\r")
+						,"`t","\t"),"""","\"""),"\\u","\u") """")
+					: value ) )												; Otherwise, add value
+				. ","														; Always add a comma
 		
-		str := RTrim(str, ",")  						; Trim off last comma
-			. "`n"
-			. ind
-			. "}"
-		,(this.no_brace_ws								; Remove whitespace from empty object
-			&& str ~= "^\s*\{[ |\t|\n|\r]*\},?\s*$")
-				? str := (this.ob_new_line 
-					? "`n" ind : "") "{}"
-			: ""
-		MsgBox, % "Finished string:`n`n" str
-		Return str
-	}
-	extract_arr(arr, ind:="") {
-		Local
-		ind_big := ind . this.indent_unit
-		str	:= (this.ob_new_line
-				? "`n" (this.ob_val_inline
-					? ind_big : ind)
+		str := RTrim(str, ",")  											; Trim last comma
+			. (this.cb_new_line
+				? "`n"
+				. (this.cb_val_inline ? ind_big : ind)
 				: "")
-			. "["
+			. (type ? "]" : "}")
 		
-		For index, value in arr
-			this.msg("index: " index "`nvalue: " value "`nvalue is object: " IsObject(value) "`nstr: " str)
-			,str	.= "`n" ind_big
-				. ((this.is_array(value))
-					? this.extract_arr(value, ind_big)
-				: (IsObject(value))
-					? this.extract_obj(value, ind_big)
-				: (SubStr(value, 1, 1) == """")
-					? value ;this.esc_char_encode(value)
-					: value	)
-				. ","
-		
-		str := RTrim(str, ",")  						; Trim off last comma
-			. "`n"
-			. ind
-			. "]"
-		;~ ,(this.no_brace_ws								; Remove whitespace from empty object
-			;~ && str ~= "^\s*\[[ |\t|\n|\r]*\],?\s*$")
-				;~ ? str := (this.ob_new_line 
-					;~ ? "`n" ind : "") "[]"
-			;~ : ""
+		; Remove whitespace from empty object
+		(this.no_brace_ws && str ~= this.rgx[(type?"e_arr":"e_obj")])		; RegEx empty object
+				? str := (this.ob_new_line ? "`n" ind : "")
+					. "{ }"
+				: ""
 		
 		Return str
-	}
-	
-	collapse_multiple_objects(txt) {
-		Local
-		orig	:= txt
-		,open_c	:= open_s := 0
-		,valid	:= True
-		,breaker:= False
-		
-		Loop, Parse, % " ,`t`n`r"
-			txt := StrReplace(txt, A_LoopField, "")
-		
-		;; did i include commas between multiple objects?
-		While (!breaker)
-			char := SubStr(txt, A_Index, 1)
-			, InStr("{}", char)
-				? (char = "{")
-					? open_c++
-					: open_c--
-			: InStr("[]", char)
-				? (char = "[")
-					? open_s++
-					: open_s--
-			: (breaker := True
-				, valid := False)
-			,(open_c < 0 || open_s < 0)
-				? valid := False
-				: (open_c = 0 && open_s = 0)
-					? breaker := True
-					: ""
-		
-		Return (valid ? txt : orig)
 	}
 	
 	; Converts a json file into a single string
 	stringify(json) {
 		Local
-		/* Account for objects or text
-		If IsObj(json)
-			; Convert obj
-		Else
-			; Convert txt
-		*/
 		
 		; Convert text
 		str			:= ""
@@ -392,34 +366,6 @@ Class JSON_AHK
 		; For tracking object path, would using a string with substring be faster than array and push/pop?
 		; Can bit shifting be used as a replacement for path_t (tracks if current path is an array or object so a bunch of true/false)?
 		
-		; Also, isn't using '=' faster than ':=' for assigments?
-		; Even though all of this is written in expression format, AHK assumes the first = after a comma is assignment
-		; This could realy speed things up.
-		;~ While (i < max)
-			;~ is_ws[(char := SubStr(json, ++i, 1))]
-				;~ ? ""
-			;~ : (next == "v")
-				;~ ? (rgx_key := is_val[char])
-					;~ ; optimization to include post-whitespace in regex?
-					;~ ; Would this help progress i faster?
-					;~ ? RegExMatch(json, rgx[rgx_key], m_, i)
-						;~ ? (obj[path*] := m_str
-							;~ , i += StrLen(m_str)
-							;~ , next := "e"	)
-					;~ : this.error("invalid num/str/bool/null")
-				;~ : (is_end[char])
-					;~ ? (path.Pop(), path_t.Pop(), next := "e")
-				;~ : ()
-					;~ ? 
-				;~ : this.error("not a valid value")
-			;~ : (next == "k")
-			;~ : (next == "e")
-			;~ : (next == "s")
-				;~ ? (next := is_open[char])
-				;~ : this.error("not a valid json opener")
-			;~ : this.error()
-		; Rewrite this using a switch to see how speed performs
-		
 		While (i < max) {
 			If is_ws[(char := SubStr(json, ++i, 1))]						; Get first char
 				Continue													; Skip if whitespace
@@ -429,10 +375,14 @@ Class JSON_AHK
 			If (next == "v")												; Get value
 				(rgx_key := is_val[char])									; Check if first char is a valid non-object value start
 					? (RegExMatch(json, rgx[rgx_key], m_, i))				; Get and validate the value type using the right regex
-						? (obj[path*] := m_str ;(rgx_key=="s" && InStr(m_str, "\")	; Add value to object
-											;? this.string_decode(m_str)			; If value is a string with an escape char in it, decode it
-											;: m_str)
-							;, this.msg("m_: " m_ "`nm_str: " m_str "`nrgx_key: " rgx_key "`ni: " i)
+						? (obj[path*] := (rgx_key=="s" && InStr(m_str,"\")	; Add value to object
+							? """" StrReplace(StrReplace(StrReplace(""
+							. StrReplace(StrReplace(StrReplace(""
+							. StrReplace(StrReplace(SubStr(m_str, 2, -1)	; Substring removes the initila quotes
+								,"\b" ,"`b") ,"\f" ,"`f") ,"\n" ,"`n")		; Backspace, formfeed, linefeed
+								,"\r" ,"`r") ,"\t" ,"`t") ,"\/" ,"/")		; Carriage return, tab, slash
+								,"\""","""") ,"\\","\")  """"	; Double quote, backslash, fix unicode
+							: m_str )										; If
 							, i += StrLen(m_str) - 1							; Increment index and check for value ender
 							, next := "e"	)								; Next find ender
 					: this.error(json, i, err.snb.msg, err.snb.exp, m_)		; Otherwise, throw error for invalid number/string/bool/null
@@ -441,18 +391,16 @@ Class JSON_AHK
 						, next := "k" )
 				: (char == "[")												; If new array
 					? (obj[path*] := []
-						, path.Push(1)
-						, path_t.Push(True)
+						, path.Push(1), path_t.Push(True)
 						, next := "a")
 				: this.error(json, i, err.val.msg, err.val.exp, char)		; Otherwise, error b/c not a valid value
 			Else If (next == "e")											; Check for a value ending (comma or closing brace)
 				(char == ",")												; If comma, another value is expected
-					? (path_t[path_t.MaxIndex()])								; If current path is an array
+					? (path_t[path_t.MaxIndex()])							; If current path is an array
 						? (path[path.MaxIndex()]++							; Increment index and get another value
 							, next := "v")
-						: (path.Pop()										; If current path is an object
-							, path_t.Pop()									; Remove key and get a new one
-							, next := "k")
+						: (path.Pop() , path_t.Pop()						; If current path is an object
+							, next := "k")									; Remove key and get a new one
 				: ((char == "}") && !(path_t[path_t.MaxIndex()])
 				|| (char == "]") && path_t[path_t.MaxIndex()])
 					? (path.Pop()
@@ -465,13 +413,17 @@ Class JSON_AHK
 				(char == "]")
 					? (path.Pop() ,path_t.Pop(), next := "e")
 				: (rgx_key := is_val[char])
-					? (RegExMatch(json, rgx[rgx_key], m_, i))
-						? (obj[path*] := m_str (rgx_key=="s" && InStr(m_str, "\")
-											? this.string_decode(m_str)
-											: m_str)
-							;, this.msg("value full match m_: " m_ "`nvalue: " m_str "`ni: " i)
-							, i += StrLen(m_str)-1
-							, next := "e" )
+					? (RegExMatch(json, rgx[rgx_key], m_, i))				; Get and validate the value type using the right regex
+						? (obj[path*] := (rgx_key=="s" && InStr(m_str,"\")	; Add value to object
+							? """" StrReplace(StrReplace(StrReplace(""
+							. StrReplace(StrReplace(StrReplace(""
+							. StrReplace(StrReplace(SubStr(m_str, 2, -1)	; Substring removes the initila quotes
+								,"\b" ,"`b") ,"\f" ,"`f") ,"\n" ,"`n")		; Backspace, formfeed, linefeed
+								,"\r" ,"`r") ,"\t" ,"`t") ,"\/" ,"/")		; Carriage return, tab, slash
+								,"\""","""") ,"\\","\")  """"	; Double quote, backslash, fix unicode
+							: m_str )										; If
+							, i += StrLen(m_str) - 1							; Increment index and check for value ender
+							, next := "e"	)								; Next find ender
 					: this.error(json, i, err.snb.msg, err.snb.exp, m_)		; Otherwise, throw error for invalid number/string/bool/null
 				: (char == "{")												; If new object
 					? next := "k"
@@ -506,15 +458,66 @@ Class JSON_AHK
 				, "`n`tb - Beginning" . "`n`te - Ending" . "`n`tk - Key" . "`n`tv - Value"
 				, next)
 		}
-		
 		Return obj
+	}
+	to_json_err(code) {
+		/*
+		; Error messages and expectations
+		err	:=	{snb	:{msg	: "Invalid string|number|true|false|null.`nNeed to write a function that auto-detects this for me."
+						,exp	: "string number true false null"}
+				,cls	:{msg	: "Invalid closing brace.`nObjects must end with a } and arrays must end with a ]."
+						,exp	: "} ]"}
+				,arr	:{msg	: "The first item in an array must be a value or a closing square bracket."
+						,exp	: "] - 0 1 2 3 4 5 6 7 8 9 "" t f n"}
+				,val	:{msg	: "Invalid value.`nNeed to write a function that auto-detects this for me."
+						,exp	: "string number true false null object array"}
+				,nxt	:{msg	: "Commas are required between values."
+						,exp	: ","}
+				,key	:{msg	: "An object must start with a key or closing curly brace."
+						,exp	: "Keys must follow string rules."}
+				,jsn	:{msg	: "Invalid JSON file.`nJSON data starts with a brace."
+						,exp	: "[ {"}	}
+		*/
+		
+		Return
 	}
 	
 	string_decode(txt){
 		Local
 		
-		str		:= char := code := ""
-		,txt	:= StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(txt
+		;str		:= char := code := ""
+		;,txt	:= StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(txt
+		;			,"\b"	,"`b")	; Backspace
+		;			,"\f"	,"`f")	; Formfeed
+		;			,"\n"	,"`n")	; Linefeed
+		;			,"\r"	,"`r")	; Carriage Return
+		;			,"\t"	,"`t")	; Tab
+		;			,"\/"	,"/")	; Slash / Solidus
+		;			,"\"""	,"""")	; Double Quotes
+		;			,"\\"	,"\")	; Last, set \* as placeholder for \
+		
+		;~ Loop, Parse, % txt, % "\"
+			;~ str .= (A_Index == 1)									; Always add first line
+				;~ ? A_LoopField
+			;~ : ((char := SubStr(A_LoopField,1,1)) == "*")			; Replace * place holder with \
+				;~ ? "\" . SubStr(A_LoopField,2)
+			;~ : (char == "u")											; Replace unicode
+				;~ ? ((code := "0x" SubStr(A_LoopField,2,4)) >= 0x0000	; Validate hex range
+					;~ && code <= 0xFFFF)
+					;~ ? Chr(code) . SubStr(A_LoopField,6)				; Add to str
+				;~ : this.error(txt, A_Index
+					;~ , "Unicode hex is invalid."
+					;~ , "#### 4 hex numbers. 0-9, A-F, a-f"
+						;~ . "`n 0x0000 <= #### >= 0xFFFF"
+					;~ , code, "", "\")
+			;~ : this.error(txt, A_Index
+				;~ , "Invalid escape character."
+				;~ , "\b \r \n \t \f \\ \/ \"" \u####"
+				;~ , char, "", "\")
+		
+		;Return str
+		
+		Return StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(txt
 					,"\b"	,"`b")	; Backspace
 					,"\f"	,"`f")	; Formfeed
 					,"\n"	,"`n")	; Linefeed
@@ -522,62 +525,44 @@ Class JSON_AHK
 					,"\t"	,"`t")	; Tab
 					,"\/"	,"/")	; Slash / Solidus
 					,"\"""	,"""")	; Double Quotes
-					,"\\"	,"\*")	; Last, set \* as placeholder for \
-		
-		Loop, Parse, % txt, % "\"
-			str .= (A_Index == 1)									; Always add first line
-				? A_LoopField
-			: ((char := SubStr(A_LoopField,1,1)) == "*")			; Replace * place holder with \
-				? "\" . SubStr(A_LoopField,2)
-			: (char == "u")											; Replace unicode
-				? ((code := "0x" SubStr(A_LoopField,2,4)) >= 0x0000	; Validate hex range
-					&& code <= 0xFFFF)
-					? Chr(code) . SubStr(A_LoopField,6)				; Add to str
-				: this.error(txt, A_Index
-					, "Unicode hex is invalid."
-					, "#### 4 hex numbers. 0-9, A-F, a-f"
-						. "`n 0x0000 <= #### >= 0xFFFF"
-					, code, "", "\")
-			: this.error(txt, A_Index
-				, "Invalid escape character."
-				, "\b \r \n \t \f \\ \/ \"" \u####"
-				, char, "", "\")
-		
-		Return str
+					,"\\"	,"\")	; Last, set \* as placeholder for \
 	}
 	
 	; Encodes specific chars to escaped chars
 	string_encode(txt) {
 		Local
 		
-		txt	:= SubStr(txt, 2, -1)
-		,txt:= StrReplace(txt, "\", "\\")	; Backslash / Reverse Solidus
-		,txt:= StrReplace(txt, "/",	 "\/")	; Slash / Solidus
-		,txt:= StrReplace(txt, """", "\""")	; Double Quote
-		,txt:= StrReplace(txt, "`t", "\t")	; Tab
-		,txt:= StrReplace(txt, "`r", "\r")	; Carriage Return
-		,txt:= StrReplace(txt, "`n", "\n")	; Linefeed
-		,txt:= StrReplace(txt, "`f", "\f")	; Formfeed
-		,txt:= StrReplace(txt, "`b", "\b")	; Backspace
+		MsgBox, % "before:`n`n" txt
 		
-		Return (this.dq . txt . this.dq)
+		txt	:= """" StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(""
+			. StrReplace(StrReplace(StrReplace(StrReplace(SubStr(txt, 2, -1)
+				,"\"	,"\\" )		; Backspace
+				,"`b"	,"\b" )		; Backspace
+				,"`f"	,"\f" )		; Formfeed
+				,"`n"	,"\n" )		; Linefeed
+				,"`r"	,"\r" )		; Carriage Return
+				,"`t"	,"\t" )		; Tab
+				,"/" 	,"\/" )		; Slash / Solidus
+				,""""	,"\""")		; Double Quotes
+				,"\\u"	,"\u") """" ; Fixes unicode
+		
+		MsgBox, % "after:`n`n" txt
+		Return ("""" txt """")
 	}
 	
-	;==============================\
-	;          Hannah...           |
-	;          You still           |
-	;         a bee~itch!          |
-	;==============================/
+	;=============================\
+	;           Hannah.           |
+	;         You still a         |
+	;         bee~itch! ;)        |
+	;=============================/
 	
 	; Check if object is an array
 	is_array(obj) {
-		status := 1
-		For i, v in obj
-			(i == A_Index)
-				? ""
-				: status := 0
-		Until (status == 0)
-		Return status
+		If IsObject(obj)
+			For k, v in obj
+				If (k != A_Index)
+					Return False
+		Return True
 	}
 	
 	basic_error(msg) {
@@ -906,3 +891,4 @@ Class JSON_AHK
 	;~ }
 
 }
+
