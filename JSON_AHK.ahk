@@ -40,15 +40,23 @@ test() {
 	; Base:	 				file 25MB		i=5		time=2.9 sec
 	; Outside func:			file 25MB		i=5		time=6.39
 	;
-	; to_json:
-	; Base:					file 25MB		i=5		9.5
-	; Compressing for loop	file 25MB		i=5
-	
-	
+	; 
 	
 	obj := {}
 	jtxt := json_ahk.import()
-	i := 5
+	i := 1
+	
+	qpx(1)
+	Loop, % i
+		json_ahk.stringify(jtxt)
+	t1 := qpx(0)
+	MsgBox, % "[qpx]to_ahk convert time: " t1/i " sec"
+	
+	ExitApp
+	
+	obj := {}
+	jtxt := json_ahk.import()
+	i := 1
 	
 	qpx(1)
 	Loop, % i
@@ -137,39 +145,28 @@ Class JSON_AHK
 	;							; 				"value2"
 	;							; 			}	;
 	;=========================================================================================================
-	
-    ; User Settings                       ;Default|
-    Static indent_unit        := "`t"     ; `t    | Set to the desired indent character(s)
+	; some of these are not implemented yet
+    ; User settings for JSON formatting   ;Default|
+    Static indent_unit        := "`t"     ; `t    | Set to desired indent (EX: "  " for 2 spaces)
            ,ob_new_line       := True     ; True  | Open brace is put on a new line
-           ,ob_val_inline     := False    ; False | Open brace indented to match value indent
-           ,brace_val_same    := False    ; False | Brace and first value share same line
+           ,ob_val_inline     := False    ; False | Open braces on a new line are indented to match value
+           ,arr_val_same      := False    ; False | First value of an array appears on the same line as the brace
+           ,obj_val_same      := False    ; False | First value of an object appears on the same line as the brace
            ,cb_new_line       := True     ; True  | Close brace is put on a new line
-           ,cb_val_inline     := False    ; False | Close brace indented to match value indent
+           ,cb_val_inline     := False    ; False | Open braces on a new line are indented to match value
            ,no_brace_ws       := True     ; True  | Remove whitespace from empty braces
+           ,add_quotes        := False    ; False | Adds quotation marks to all strings if they lack one
            ,no_braces         := False    ; False | Messes up your teeth. JK. It removes all braces
-           ,remove_quotes     := False    ; False | Removes surrounding quotation marks from strings
-		   ; not implemented yet
+                                          ;       | This invalidates the JSON and is only meant for human readability
 		   ,esc_slash         := False    ; False | Escapes forward slashes when exporting JSON
-    ;Static no_brace_ws_all    := True        ; Remove whitespace from objects containing empty objects. Default = False
-    
+    ; User settings for converting JSON
+    Static strip_quotes       := False    ; False | Removes surrounding quotation marks from
+	
 	;=========================================================================================================
 	
-	; JSON values
-	Static 	dq		:= Chr(0x22)
-			,is_ws	:= 	{" "	:True		; Space
-						,"`t"	:True		; Tab
-						,"`n"	:True		; Linefeed
-						,"`r"	:True	}	; Carriage Return
-			,is_esc	:= 	{""""	:""""		; Double Quote
-						,"\"	:"\"		; Backslash / Reverse Solidus
-						,"/"	:"/"		; Slash / Solidus
-						,"b"	:"`b"		; Backspace
-						,"f"	:"`f"		; Formfeed
-						,"n"	:"`n"		; Linefeed
-						,"r"	:"`r"		; Carriage Return
-						,"t"	:"`t"	}	; Tab
-			,rgx	:=	{"e_arr":"^\s*\[[ \t\r\n]*\]\s*$"
-						,"e_obj":"^\s*\{[ \t\r\n]*\}\s*$"}
+	Static 	rgx        := {}
+			,rgx.e_arr := "^\s*\[[ \t\r\n]+\]\s*$"
+			,rgx.e_obj := "^\s*\{[ \t\r\n]+\}\s*$"
 	
 	; Import JSON file
 	import() {
@@ -190,6 +187,12 @@ Class JSON_AHK
 		Return json
 	}
 	
+	; Pretty much a clone of to_ahk() except no writing/object building
+	; I would just adapt to_ahk() but the extra if checks are going to slow things down
+	validate(json) {
+		Return
+	}
+	
 	; Convert AHK object to JSON string
 	to_json(obj, ind:="") {
 		Return IsObject(obj)
@@ -203,54 +206,37 @@ Class JSON_AHK
 		,str	:= (this.ob_new_line										; Build beginning of arr/obj
 					? "`n" (this.ob_val_inline ? ind_big : ind)
 					: "")
-				. (type ? "[" : "{")
-		
-		;~ For key, value in obj
-			;~ str .= (this.is_array(value)
-					;~ ? (type ? "" : (this.brace_val_same ? "`n" ind_big : "") key " : ")
-						;~ . this.to_json_extract(value, 1, ind_big)
-				;~ : IsObject(value)											; If object
-					;~ ? (type ? "" : key ": ")								; Add key and get object values
-						;~ . this.to_json_extract(value, 0, ind_big)
-				;~ : ind_big (type ? "" : key ": ")						; Otherwise, add value
-					;~ . (InStr(value, """")
-						;~ ? ("""" StrReplace(StrReplace(StrReplace(""
-						;~ . StrReplace(StrReplace(StrReplace(StrReplace(""
-						;~ . StrReplace(SubStr(value, 2, -1) ,"\","\\" )
-						;~ ,"`b","\b"),"`f","\f"),"`n","\n"),"`r","\r")
-						;~ ,"`t","\t"),"""","\"""),"\\u","\u") """")
-					;~ : value ) )												; Otherwise, add value
-				;~ . ","														; Always add a comma
+				. (this.no_braces ? "" : type ? "[" : "{")
 		
 		For key, value in obj
 			str .= (this.is_array(value)
-					? (type ? "" 
-					: (this.brace_val_same ? "" : "`n" ind_big) key ": ")
+					? (type	? ""
+					: "`n" ind_big key ": ")
 					. this.to_json_extract(value, 1, ind_big)
 				: IsObject(value)											; If object
 					? (type ? "" : key ": ")								; Add key and get object values
 						. this.to_json_extract(value, 0, ind_big)
-				: ind_big (type ? "" : key ": ")						; Otherwise, add value
+				: "`n" ind_big (type ? "" : key ": ")							; Otherwise, add value
 					. (InStr(value, """")
 						? ("""" StrReplace(StrReplace(StrReplace(""
 						. StrReplace(StrReplace(StrReplace(StrReplace(""
-						. StrReplace(SubStr(value, 2, -1) ,"\","\\" )
+						. StrReplace(SubStr(value, 2, -1),"\","\\")
 						,"`b","\b"),"`f","\f"),"`n","\n"),"`r","\r")
 						,"`t","\t"),"""","\"""),"\\u","\u") """")
-					: value ) )												; Otherwise, add value
-				. ","														; Always add a comma
+						: value ) )											; Otherwise, add value
+					. ","													; Always add a comma
 		
 		str := RTrim(str, ",")  											; Trim last comma
-			. (this.cb_new_line
-				? "`n"
-				. (this.cb_val_inline ? ind_big : ind)
+				. (this.cb_new_line
+					? "`n"
+					. (this.cb_val_inline ? ind_big : ind)
 				: "")
-			. (type ? "]" : "}")
+				. (this.no_braces ? "" : type ? "]" : "}")
 		
 		; Remove whitespace from empty object
-		(this.no_brace_ws && str ~= this.rgx[(type?"e_arr":"e_obj")])		; RegEx empty object
+		(this.no_brace_ws && str ~= this.rgx[(type?"e_arr":"e_obj")])	; RegEx empty object
 				? str := (this.ob_new_line ? "`n" ind : "")
-					. "{ }"
+					. (this.no_braces ? "" : "{}" )
 				: ""
 		
 		Return str
@@ -262,35 +248,12 @@ Class JSON_AHK
 		
 		; Convert text
 		str			:= ""
-		,VarSetCapacity(str, 10000)
-		,char		:= ""
-		,last		:= ""
-		,max_chars	:= StrLen(json)
-		,in_string	:= False
-		,index		:= 0
-		,start		:= 0
-		,is_ws		:= {" ":True,"`t":True,"`n":True,"`r":True}
+		,in_str		:= False
 		
-		Loop, % max_chars {
-			char := SubStr(json, A_Index, 1)
-			, (start > 0)
-				? (!in_string && is_ws[char])
-					? (str .= SubStr(json, start, A_Index-start)
-						, start := 0)
-					: ""
-				: (!in_string && is_ws[char])
-					? ""
-					: start := A_Index
-			, (char == """" && last != "\")
-				? in_string := !in_string
-				: ""
-			, last := (char = "\" && last = "\")
-				? ""
-				: char
-		}
-		If (start)
-			str .= SubStr(json, start, max_chars-start)
-		
+		Loop, Parse, % json, % """"
+			(in_str)
+				? ????????????????????????????????????????
+				: 
 		Return str
 	}
 	
@@ -558,10 +521,11 @@ Class JSON_AHK
 	
 	; Check if object is an array
 	is_array(obj) {
-		If IsObject(obj)
-			For k, v in obj
-				If (k != A_Index)
-					Return False
+		If !IsObject(obj)
+			Return False
+		For k, v in obj
+			If (k != A_Index)
+				Return False
 		Return True
 	}
 	
@@ -891,4 +855,3 @@ Class JSON_AHK
 	;~ }
 
 }
-
