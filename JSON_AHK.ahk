@@ -48,7 +48,7 @@ test() {
 	
 	qpx(1)
 	Loop, % i
-		json_ahk.stringify(jtxt)
+		Clipboard := json_ahk.stringify(jtxt)
 	t1 := qpx(0)
 	MsgBox, % "[qpx]to_ahk convert time: " t1/i " sec"
 	
@@ -97,7 +97,6 @@ Class JSON_AHK
 	;	.to_JSON(ahk_object)	; Converts an AHK object and returns JSON text
 	;	.to_AHK(json_txt)		; Converts JSON text and returns an AHK object
 	;	.stringify(json_txt)	; Organizes code into one single line
-	;	.readable(json_txt)		; Organizes code into indented, readable lines
 	;	.validate(json_txt)		; Validates a json file and retruns true or false
 	;	.import()				; Returns JSON text from a file
 	;
@@ -181,7 +180,7 @@ Class JSON_AHK
 		FileRead, json, % path
 		If (ErrorLevel = 1) {
 			this.basic_error("An error occurred when loading the file."
-				. "`n" A_LastError)
+				. "`nError:" A_LastError)
 			Return False
 		}
 		Return json
@@ -190,6 +189,7 @@ Class JSON_AHK
 	; Pretty much a clone of to_ahk() except no writing/object building
 	; I would just adapt to_ahk() but the extra if checks are going to slow things down
 	validate(json) {
+		
 		Return
 	}
 	
@@ -199,68 +199,83 @@ Class JSON_AHK
 			? LTrim(this.to_json_extract(obj, this.is_array(obj)), "`n")
 		: this.basic_error("You did not supply a valid object or array")
 	}
+	; Extracts values from provided obj
+	; Type 0 is object, 1 is array
+	; Ind is the amount of indent to use
+	; Recursively extracts values from an object
 	to_json_extract(obj, type, ind:="") {
 		Local
 		
 		ind_big := ind . this.indent_unit									; Set big indent
 		,str	:= (this.ob_new_line										; Build beginning of arr/obj
-					? "`n" (this.ob_val_inline ? ind_big : ind)
-					: "")
-				. (this.no_braces ? "" : type ? "[" : "{")
+					? "`n" (this.ob_val_inline ? ind_big : ind)             ; Check user settings
+					: "")                                                   ; Create brace prefix
+				. (this.no_braces ? "" : type ? "[" : "{")                  ; Add brace
 		
 		For key, value in obj
-			str .= (this.is_array(value)
-					? (type	? ""
-					: "`n" ind_big key ": ")
-					. this.to_json_extract(value, 1, ind_big)
-				: IsObject(value)											; If object
-					? (type ? "" : key ": ")								; Add key and get object values
-						. this.to_json_extract(value, 0, ind_big)
-				: "`n" ind_big (type ? "" : key ": ")							; Otherwise, add value
-					. (InStr(value, """")
-						? ("""" StrReplace(StrReplace(StrReplace(""
-						. StrReplace(StrReplace(StrReplace(StrReplace(""
-						. StrReplace(SubStr(value, 2, -1),"\","\\")
-						,"`b","\b"),"`f","\f"),"`n","\n"),"`r","\r")
+			str .= (this.is_array(value)                                    ; Check if value is array
+					? (type	? ""                                            ; If this obj is array, do nothing
+					: "`n" ind_big key ": ")                                ; Else, construct value prefix
+					. this.to_json_extract(value, 1, ind_big)				; And get value
+				: IsObject(value)											; If value not array, check if object
+					? (type ? "" : key ": ")								; Construct prefix
+						. this.to_json_extract(value, 0, ind_big)			; And get value
+				: "`n" ind_big (type ? "" : key ": ")                       ; If not array or object, is value
+					. (InStr(value, """")                                   ; Check if string
+						? ("""" StrReplace(StrReplace(StrReplace(""         ; If in string, escape: backslashes
+						. StrReplace(StrReplace(StrReplace(StrReplace(""    ; backspaces, formfeeds, tabs, linefeeds
+						. StrReplace(SubStr(value, 2, -1),"\","\\")         ; carriage returns, and double quotes
+						,"`b","\b"),"`f","\f"),"`n","\n"),"`r","\r")        ; \\u is also fixed
 						,"`t","\t"),"""","\"""),"\\u","\u") """")
-						: value ) )											; Otherwise, add value
-					. ","													; Always add a comma
+						: value ) )											; If not a string, add value
+					. ","													; Always end with a comma
 		
-		str := RTrim(str, ",")  											; Trim last comma
-				. (this.cb_new_line
-					? "`n"
-					. (this.cb_val_inline ? ind_big : ind)
-				: "")
-				. (this.no_braces ? "" : type ? "]" : "}")
+		str := RTrim(str, ",")                                ; Strip off last comma
+			. (this.cb_new_line ? "`n" (this.cb_val_inline ?  ; Check user settings
+			. ind_big : ind) : "")                            ; Create closing prefix
+			. (this.no_braces ? "" : type ? "]" : "}")        ; Select brace
 		
 		; Remove whitespace from empty object
-		(this.no_brace_ws && str ~= this.rgx[(type?"e_arr":"e_obj")])	; RegEx empty object
-				? str := (this.ob_new_line ? "`n" ind : "")
-					. (this.no_braces ? "" : "{}" )
-				: ""
+		, (this.no_brace_ws                              ; Check user setting
+			&& str ~= this.rgx[(type?"e_arr":"e_obj")])  ; RegEx for empty object/array
+			? str := (this.ob_new_line ? "`n" ind : "")  ; If true, create prefix
+				;; In AHK v1, there's no way to distinguish between an empty array and empty object
+				;; When constructing JSON output, empty arrays will always show as empty objects
+				. (this.no_braces ? "" : "{}" )          ; Add empty brace.
+			: ""
 		
 		Return str
 	}
 	
-	; Converts a json file into a single string
+	; Converts a json text file into a single string
 	stringify(json) {
 		Local
 		
 		; Convert text
 		str			:= ""
-		,in_str		:= False
+		,in_string	:= True
+		,i			:= 0
+		,m_			:= ""
+		,max		:= StrLen(json)
+		,dq			:= Chr(34)
+		,VarSetCapacity(str, 100000000)
 		
-		Loop, Parse, % json, % """"
-			(in_str)
-				? ????????????????????????????????????????
-				: 
-		Return str
-	}
-	
-	; Makes JSON text readable for humans
-	readable(json_txt) {
+		While (i < max)
+			(in_string := !in_string)
+				? RegExMatch(json, "P)((?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*"")))", m_, i)
+					? (str .= SubStr(json, i, m_Lenstr)
+					, i += m_Lenstr)
+				: this.basic_error("Stringify Error: A complete string was expected.`nFound: " SubStr(json, i, 25))
+			: RegExMatch(json, "P).*?""", m_, i)
+				? (str .= StrReplace(StrReplace(StrReplace(StrReplace(""
+					. SubStr(json, i, m_Lenstr)," "),"`n"),"`t")"`r")
+				, i += m_Lenstr)
+			: (str .= SubStr(json, i, max-i)
+				, i := max)
 		
-		Return
+		MsgBox, % "str: " str
+		
+		Return RTrim(str, """")
 	}
 	
 	; Convert json text to an ahk object
@@ -268,7 +283,7 @@ Class JSON_AHK
 		Local
 		
 		obj		:= {}			; Main object to build and return
-		,obj.SetCapacity(1024)	; Does setting a large object size speed up performance?
+		;,obj.SetCapacity(1024)	; Does setting a large object size speed up performance?
 		,path	:= []			; Path value should be stored in the object
 		,path_t	:= []			; Tracks if current path is an array (true) or object (false)
 		,i		:= 0			; Tracks current position in the json string
