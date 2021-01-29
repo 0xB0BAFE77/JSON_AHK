@@ -15,7 +15,7 @@ t1 += A_TickCount
 MsgBox, % "Time to validate: " t1 " ms"
 ExitApp
 
-make_valid_key() {
+generate_valid_key() {
 	; Uses char codes to assign validation table columns
 	; This bypasses AHK's "case-insensitive object key" issue
     ;       Spc     Tab     LF      CR
@@ -35,14 +35,15 @@ make_valid_key() {
            ;l       n       r       s       t       u
            ,108:23 ,110:24 ,114:25 ,115:26 ,116:27 ,117:28 }
 	
-	Loop, 32
-		(table_key[A_Index-1] > 0) ? "" ; Other than tab, CR and LF, none of the first 32
-		: table_key[A_Index-1] := 30    ; ASCII control characters can be in a JSON file
+	Loop, 32                              ; Other than tab, CR, and LF, none
+		(table_key[A_Index-1] > 0)        ; of the first 32 ASCII control
+			? ""                          ; characters can be in a JSON file
+			: table_key[A_Index-1] := 30
 	
 	return table_key
 }
 
-make_valid_table() {
+generate_valid_table() {
 	; Validation table for a JSON file
 	table    := {}
 	;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30    
@@ -74,21 +75,21 @@ make_valid_table() {
 	table.E2 := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Exponent 2
 	;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30    
 	;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA    
-	table.T1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"T2",""  ,""  ,""  ,""  ,""   ] ; true > r
-	table.T2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"T3",""  ,""   ] ; true > u
-	table.T3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; true > e
-	table.F1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; false > a
-	table.F2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F3",""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; false > l
-	table.F3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F4",""  ,""  ,""  ,""   ] ; false > s
-	table.F4 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; false > e
-	table.N1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N2",""  ,""   ] ; null > u
-	table.N2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N3",""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; null > l
-	table.N3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; null > l
+	table.T1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"T2",""  ,""  ,""  ,""  ,""   ] ; true > tr
+	table.T2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"T3",""  ,""   ] ; true > tru
+	table.T3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; true > true
+	table.F1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; false > fa
+	table.F2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F3",""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; false > fal
+	table.F3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F4",""  ,""  ,""  ,""   ] ; false > fals
+	table.F4 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; false > false
+	table.N1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N2",""  ,""   ] ; null > nu
+	table.N2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N3",""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; null > nul
+	table.N3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; null > null
 	
 	Return table
 }
 	
-err_finder(json, i, exp){
+err_finder(json, i){
 	Local
 	
 	max        := StrLen(json)            ; Max amount of characters
@@ -96,10 +97,10 @@ err_finder(json, i, exp){
 	,err_i     := 0                       ; Index of error
 	,path_a    := []                      ; Path array type
 	,get_key   := 0                       ; Tracks if getting key
-	;,v_table   := this.make_valid_table() ; JSON validation table
-	,v_table   := make_valid_table()      ; JSON validation table
-	;,table_key := this.make_valid_key()   ; Key that converts ascii to validation table columns
-	,table_key := make_valid_key()        ; Key that converts ascii to validation table columns
+	;,v_table   := this.generate_valid_table() ; JSON validation table
+	,v_table   := generate_valid_table()  ; JSON validation table
+	;,table_key := this.generate_valid_key()   ; Key that converts ascii to validation table columns
+	,table_key := generate_valid_key()    ; Key that converts ascii to validation table columns
 	,is_val    := { 9: "ST"               ; Used to assign correct state when value recording starts
                   ,13: "NN"
                   ,15: "ND"
@@ -146,7 +147,7 @@ err_finder(json, i, exp){
 			: (st := "CC" )                                     ;    If string, add to object
 		: (st = -7) ? (st := is_val[k])                         ; -7 Mark start of value and resume validation
 		: (st = -8) ? (k = 4 && !path_a[path_a.MaxIndex()])     ; -8 End obj/arr If bracket and in array
-			|| (k = 6 && path_a[path_a.MaxIndex()])             ; OR if brace and in objecct
+			|| (k = 6 && path_a[path_a.MaxIndex()])             ;    OR if brace and in objecct
 			? (st := "CC", path_a.Pop())                        ;    Remove old path and check CC
 			: (err_i := i, i := max)                            ; If brace doesn't match, error out
 		: (st = -9) ? (st := "CC", --i)                         ; -9 Record value
@@ -180,10 +181,10 @@ validate(json){
 	,path_a    := []                      ; Path array type
 	,get_key   := 0                       ; Tracks if getting key
     ,obj       := {}                      ; Object to build
-	;,v_table   := this.make_valid_table() ; JSON validation table
-	,v_table   := make_valid_table()      ; JSON validation table
-	;,table_key := this.make_valid_key()   ; Key that converts ascii to validation table columns
-	,table_key := make_valid_key()        ; Key that converts ascii to validation table columns
+	;,v_table   := this.generate_valid_table() ; JSON validation table
+	,v_table   := generate_valid_table()      ; JSON validation table
+	;,table_key := this.generate_valid_key()   ; Key that converts ascii to validation table columns
+	,table_key := generate_valid_key()        ; Key that converts ascii to validation table columns
     ,is_val    := { 9: "ST" ; Used to assign correct state when value recording starts
                   ,13: "NN"
                   ,15: "ND"
@@ -254,10 +255,10 @@ obj_builder(json){
 	,path_a    := []                      ; Path array type
 	,get_key   := 0                       ; Tracks if getting key
     ,obj       := {}                      ; Object to build
-	;,v_table   := this.make_valid_table() ; JSON validation table
-	,v_table   := make_valid_table()      ; JSON validation table
-	;,table_key := this.make_valid_key()   ; Key that converts ascii to validation table columns
-	,table_key := make_valid_key()        ; Key that converts ascii to validation table columns
+	;,v_table   := this.generate_valid_table() ; JSON validation table
+	,v_table   := generate_valid_table()      ; JSON validation table
+	;,table_key := this.generate_valid_key()   ; Key that converts ascii to validation table columns
+	,table_key := generate_valid_key()        ; Key that converts ascii to validation table columns
     ,is_val    := { 9: "ST" ; Used to assign correct state when value recording starts
                   ,13: "NN"
                   ,15: "ND"
@@ -436,3 +437,117 @@ For k, v in arr2
 	str .= "`n" k ":" v
 
 MsgBox, % str
+/*
+; IDK if this is saved or not
+; Clearly for Code Abbey
+
+#SingleInstance Force
+MultiLineGUI()
+test := 5761
+;MsgBox, % CalcNum(test)
+Global guiHWND := {}
+Exit
+
+*Esc::ExitApp
+
+MultiLineGUI(){
+	guiPad		:= 10
+	guiBtnH		:= 20
+	guiBtnW		:= 100
+	guiEditW	:= (guiBtnW * 2) + guiPad
+	guiEditR	:= 20
+	
+	; -0x10000 removes the max button from the gui
+	Gui, New, -0x10000, Code Abbey Challenge
+	Gui, Margin, % guiPad, % guiPad
+	
+	; Add text and multi-line edit box
+	Gui, Add, Text, , Enter test case data below.
+	Gui, Add, Edit, % "r" guiEditR " w" guiEditW " hwndHWND", ; Save handle
+		guiHWND.editBox := HWND
+	
+	; Add OK and Exit buttons
+	Gui, Add, Button, % "w" guiBtnW " h" guiBtnH " hwndHWND", Run Cases
+		guiHWND.RunBtn := HWND
+	Gui, Add, Button, % "x+" guiPad " w" guiBtnW " h" guiBtnH " hwndHWND gRunCases", Run Cases
+		guiHWND.ExitBtn := HWND
+	
+	; Show GUI
+	Gui, Show, AutoSize
+	
+	Return
+}
+
+RunCases(){
+	; Get case in array format
+	caseArr := GetCases()
+	; Get get number of cases
+	caseTotal := caseArr.1
+	caseArr.RemoveAt(1)
+	
+	Return
+}
+
+GetCases(){
+	arr := []
+	GuiControlGet, caseInfo,, % guiHWND.editBox
+	Loop, Parse, % caseInfo
+		arr.Push(A_LoopField)
+	Return arr
+}
+
+NeumannRNG(){
+	; Get number between 0000 and 9999
+	resultRNG	:= 0
+	resultArr	:= []
+	num			:= Get4DigitNumber()
+	
+	Verify4DigitNumber(num)
+	
+	Loop
+	{
+		; Calculate the new number
+		num := CalcNum(num)
+		; Check if a repeat has occurred
+		If CheckNumRepeat(num, resultArr){
+			resultRNG := A_Index
+			Break
+		}
+	}
+	MsgBox, % "num:" num
+	Return
+}
+
+Get4DigitNumber(){
+	InputBox, num, Neumann RNG, Please enter a number from 0 to 9999.
+	Return num
+}
+
+Verify4DigitNumber(num){
+	While (num > 9999) || (num < 0){
+		InputBox, num, Neumann RNG, Error: The number must fall between 0 and 9999 (inclusive).`n Please re-enter a number from 0 to 9999.
+		If (ErrorLevel = 1){
+			MsgBox, Exiting App
+			ExitApp
+		}
+	}
+	Return
+}
+
+CalcNum(num){
+	; Square it
+	num := num**2
+	; Get the middle 4 numbers
+	num := Floor(num / 100)
+	num := Mod(num, 10000)
+	Return num
+}
+
+CheckNumRepeat(num, arr){
+	result := False
+	; Loop through array
+	For index, value in Arr
+		If (num = value)
+			result := True
+	Return result
+}
