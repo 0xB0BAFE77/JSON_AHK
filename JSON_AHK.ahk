@@ -55,7 +55,20 @@ test() {
 	obj	:= {}
 	jtxt:= json_ahk.import()
 	obj	:= json_ahk.to_obj(jtxt)
-	i	:= 5
+	i	:= 1
+	
+	qpx(1)
+	Loop, % i
+		valid := json_ahk.validate(jtxt)
+	t1 := qpx(0)
+	Clipboard := valid
+	MsgBox "Avg time to convert: " t1/i " sec"
+	ExitApp
+	
+	obj	:= {}
+	jtxt:= json_ahk.import()
+	obj	:= json_ahk.to_obj(jtxt)
+	i	:= 1
 	
 	qpx(1)
 	Loop, % i
@@ -67,26 +80,20 @@ test() {
 		txt2 := json_ahk.stringify(obj)
 	t2 := qpx(0)
 	
-	Clipboard := txt1 "`n" txt2
+	Clipboard := str1 "`n" str2
 	MsgBox, % "[qpx]stringify text: " t1/i " sec"
 		. "`n[qpx]stringify object: " t2/i " sec"
 	
 	Return
 }
 
-QPX(N=0) { ; Wrapper for QueryPerformanceCounter()by SKAN | CD: 06/Dec/2009
-	Local
-	SetBatchLines, -1
-	Static	F:="", A:="", Q:="", P:="", X:="" ; www.autohotkey.com/forum/viewtopic.php?t=52083 | LM: 10/Dec/2009
-	Return ( N && !P )
-		? (DllCall("QueryPerformanceFrequency",Int64P,F) + (X:=A:=0) + DllCall("QueryPerformanceCounter",Int64P,P))
+QPX(N=0) {  ; Wrapper for QueryPerformanceCounter()by SKAN | CD: 06/Dec/2009
+	Local Static F:="",A:="",Q:="",P:="",X:=""  ; www.autohotkey.com/forum/viewtopic.php?t=52083 
+	Return ( N && !P )                          ; LM: 10/Dec/2009
+		? (DllCall("QueryPerformanceFrequency",Int64P,F) + (X:=A:=0)
+			+ DllCall("QueryPerformanceCounter",Int64P,P))
 		: (( N && X=N ) ? (X:=X-1)<<64 : ( N=0 && (R:=A/X/F) ) ? ( R + (A:=P:=X:=0) ) : 1)
-	;~ If	( N && !P )
-		;~ Return	DllCall("QueryPerformanceFrequency",Int64P,F) + (X:=A:=0) + DllCall("QueryPerformanceCounter",Int64P,P)
-	;~ DllCall("QueryPerformanceCounter",Int64P,Q), A:=A+Q-P, P:=Q, X:=X+1
-	;~ Return	( N && X=N ) ? (X:=X-1)<<64 : ( N=0 && (R:=A/X/F) ) ? ( R + (A:=P:=X:=0) ) : 1
 }
-
 
 Class JSON_AHK
 {
@@ -156,7 +163,8 @@ Class JSON_AHK
     ;                          ;             }    ;
     ;==================================================================================================================
 	; some of these are not implemented yet
-    ; User settings for JSON formatting   ;Default|
+    
+	; User settings for JSON formatting   ;Default|
     Static indent_unit        := "`t"     ; `t    | Set to desired indent (EX: "  " for 2 spaces)
            ,ob_new_line       := True     ; True  | Open brace is put on a new line
            ,ob_val_inline     := False    ; False | Open braces on a new line are indented to match value
@@ -193,43 +201,54 @@ Class JSON_AHK
 				. "`nError:" A_LastError)
 			Return False
 		}
-		this.json := json
+		
 		Return json
 	}
 	
 	; Pretty much a clone of to_obj() except no writing/object building
 	; I would just adapt to_obj() but the extra if checks are going to slow things down
 	validate(json) {
-		valid	:= False
-		,i		:= 0
-		,max	:= StrLen(json)
-		,next	:= "s"
-		,m_		:= m_str := ""
-		,path	:= []
-		,is_ws	:= {" ":True, "`t":True, "`n":True, "`r":True}
-		,is_val	:=	{"0":"n" ,"1":"n" ,"2":"n" ,"3":"n" , "4":"n"
-					,"5":"n" ,"6":"n" ,"7":"n" ,"8":"n" , "9":"n"
-					, 0 :"n" , 1 :"n" , 2 :"n" , 3 :"n" ,  4 :"n"
-					, 5 :"n" , 6 :"n" , 7 :"n" , 8 :"n" ,  9 :"n"
-					,"-":"n" ,"t":"b" ,"f":"b" ,"n":"b" ,"""":"s" }
-		,rgx	:=	{"k" : "sSP)((?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))[ |\t|\n|\r]*:)"
-					,"n" : "sSP)(?P<str>(?>-?(?>0|[1-9][0-9]*)(?>\.[0-9]+)?(?>[eE][+-]?[0-9]+)?))"
-					,"s" : "sSP)(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))"
-					,"b" : "sSP)(?P<str>true|false|null)"	}
+		Return IsObject(json)
+			? this.validate_obj(json)
+			: this.validate_text(json)
+	}
+	; Validating an AHK object
+	validate_obj(obj) {
+		
+		Return
+	}
+	; Validating JSON text
+	validate_text(txt) {
+		valid      := False
+		,i         := 0
+		,max       := StrLen(txt)
+		,next      := "s"
+		,m_        := m_str := ""
+		,path      := []
+		,is_ws     := {" ":True, "`t":True, "`n":True, "`r":True}
+		,is_val    := {"0":"n" ,"1":"n" ,"2":"n" ,"3":"n" , "4":"n"
+                      ,"5":"n" ,"6":"n" ,"7":"n" ,"8":"n" , "9":"n"
+                      ,  0:"n" ,  1:"n" ,  2:"n" ,  3:"n" ,   4:"n"
+                      ,  5:"n" ,  6:"n" ,  7:"n" ,  8:"n" ,   9:"n"
+                      ,"-":"n" ,"t":"b" ,"f":"b" ,"n":"b" ,"""":"s" }
+		,rgx       := {"k" : "sSP)((?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))[ |\t|\n|\r]*:)"
+                      ,"n" : "sSP)(?P<str>(?>-?(?>0|[1-9][0-9]*)(?>\.[0-9]+)?(?>[eE][+-]?[0-9]+)?))"
+                      ,"s" : "sSP)(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))"
+                      ,"b" : "sSP)(?P<str>true|false|null)"	}
 		
 		While (i < max) {
-			If is_ws[(char := SubStr(json, ++i, 1))]
+			If is_ws[(char := SubStr(txt, ++i, 1))]
 				Continue
 			Else If (next == "v") {
 				is_val[char]
-					? RegExMatch(json, rgx[is_val[char]], m_, i)
+					? RegExMatch(txt, rgx[is_val[char]], m_, i)
 						? (next := "e", i += m_lenstr)
-					: this.validate_err("snb")
+					: this.validate_err(json, i)
 				: (char == "[")
 					? (next := "a", path.Push(1))
 				: (char == "{")
 					? next := "k"
-				: this.validate_err("val")
+				: this.validate_err(txt, i)
 			}
 			Else If (next == "e") {
 				(char == ",")
@@ -241,10 +260,10 @@ Class JSON_AHK
 					? (path.MaxIndex() == "")
 						? (valid := True, i := max)
 					: path.Pop()
-				: this.validate_err("end")
+				: this.validate_err(txt, i)
 			}
 			Else If (next == "a") {
-				RegExMatch(json, rgx[is_val[char]], m_, i)
+				RegExMatch(txt, rgx[is_val[char]], m_, i)
 					? (next := "e", i += m_lenstr)
 				: (char == "]")
 					? (path.MaxIndex() == "")
@@ -254,33 +273,225 @@ Class JSON_AHK
 					? next := "k"
 				: (char == "[")
 					? path.Push(1)
-				: this.validate_err(3)
+				: this.validate_err(txt, i)
 			}
 			Else If (next == "k") {
-				RegExMatch(json, rgx.k, m_, i)
+				RegExMatch(txt, rgx.k, m_, i)
 					? (next := "v", path.Push(0), i+=m_lenstr)
 				: (char == "}")
 					? (path.MaxIndex() == "")
 						? (valid := True, i := max)
 					: next := "e"
-				: this.validate_err(2)
+				: this.validate_err(txt, i)
 			}
 			Else If (next == "s") {
 				(char == "{")
 					? next := "k"
 				: (char == "[")
 					? (next := "v", path.Push(1))
-				: this.validate_err(1)
+				: this.validate_err(txt, i)
 			}
 		}
+		
+		MsgBox, % "to_obj() conversion finished."
+			. "`nValid is set to: " (valid ? "true" : "false")
+		
 		Return valid
 	}
 	
-	validate_err(num) {
-		err := {}
-		err.1 := {}
-		MsgBox, % "Validation error " num
+	; Tries to determine the exact position and reason for a JSON error
+	validate_text_find_err(txt, i, ByRef message, ByRef expect, ByRef found) {
+		Local
+		max := StrLen(txt)
+		
 		Return
+	}
+	
+	validate_err(txt, i) {
+		Local
+		Static json := ""
+		
+		MsgBox, % "err_key: " err_key "`nSubStr: " SubStr(this.json, i, 21)
+		
+		message := expect := found := ""
+		char := SubStr(json, i, 1)
+		(err_key == "set")
+			? json := txt
+		: (err_key == "snbn")
+			? (char == """")
+				? this.find_str_err(json, i, message, expect, found)
+			: InStr("tfn", char)
+				? this.find_tfn_err(json, i, message, expect, found)
+			: InStr("-0123456789", char)
+				? this.find_num_err(json, i, message, expect, found)
+		: (err_key == "val")
+			? this.find_val_err(json, i, message, expect, found)
+		: (err_key == "end")
+			? this.find_val_err(json, i, message, expect, found)
+		: (err_key == "arr")
+			? this.find_val_err(json, i, message, expect, found)
+		: (err_key == "obj")
+			? ()
+		: (err_key == "strt")
+			? ()
+		
+		
+		MsgBox, 0x10, "JSON_AHK Validation Error", % "A JSON validation error occurred."
+			. "`n" err_msg
+			. "`n" expected
+			. "`n" found
+		
+		Return
+	}
+	
+	find_val_err(json, i, ByRef msg, ByRef exp, ByRef found) {
+		Return
+	}
+	
+	find_num_err(txt, i, ByRef msg, ByRef exp, ByRef found) {
+		Local
+		st    := "NM"
+		,start:= i
+		
+		,key  := {   0:"z" ,   1:"d" ,   2:"d" ,  3:"d" ,4:"d"
+				 ,   5:"d" ,   6:"d" ,   7:"d" ,  8:"d" ,9:"d"
+				 , "-":"-" , "+":"+" , ".":"." ,"e":"e"
+				 , " ":"k" , ",":"k" , "}":"k" ,"]":"k"
+				 ,"`n":"k" ,"`t":"k" ,"`r":"k" }
+		
+		,num_table := {"NM" :{"z":"ND" ,"d":"NI" ,"-":"NN" ,"+":""   ,".":""   ,"e":""   ,"k":""   }
+					  ,"NN" :{"z":"ND" ,"d":"NI" ,"-":""   ,"+":""   ,".":""   ,"e":""   ,"k":""   }
+					  ,"NI" :{"z":"NI" ,"d":"NI" ,"-":""   ,"+":""   ,".":"D1" ,"e":"E1" ,"k":"OK" }
+					  ,"ND" :{"z":""   ,"d":""   ,"-":""   ,"+":""   ,".":"D1" ,"e":"E1" ,"k":"OK" }
+					  ,"D1" :{"z":"D2" ,"d":"D2" ,"-":""   ,"+":""   ,".":""   ,"e":""   ,"k":""   }
+					  ,"D2" :{"z":"D2" ,"d":"D2" ,"-":""   ,"+":""   ,".":""   ,"e":"E1" ,"k":"OK" }
+					  ,"E1" :{"z":"E3" ,"d":"E3" ,"-":"E2" ,"+":"E2" ,".":""   ,"e":""   ,"k":""   }
+					  ,"E2" :{"z":"E3" ,"d":"E3" ,"-":""   ,"+":""   ,".":""   ,"e":""   ,"k":""   }
+					  ,"E3" :{"z":"E3" ,"d":"E3" ,"-":""   ,"+":""   ,".":""   ,"e":""   ,"k":"OK" } }
+		
+		,err := {"NM" :{"msg":"JSON numbers must start with a number or - symbol."
+					   ,"exp":"-0123456789"}
+				,"NN" :{"msg":"JSON numbers require a number after a - symbol."
+					   ,"exp":"0123456789"}
+				,"NI" :{"msg":"JSON integers require a decimal, exponent, or value ending symbol."
+					   ,"exp":"`n`tDecimal: .`n`tExponent: e E`n`tClosing Symbol: , ] }"}
+				,"ND" :{"msg":"JSON numbers cannot start with 0 except for the number 0 itself or decimals/fractions."
+					  . "`nA single zero can also be followed by an exponent."
+					   ,"exp":"Decimal: .`nExponent: e E`nClosing Symbol: , ] }"}
+				,"D1" :{"msg":"JSON requires a number after a decimal point."
+					   ,"exp":"0123456789"}
+				,"D2" :{"msg":"A JSON decimal number can only have numbers and must be followed by exponent, comma, or valid closing brace."
+					   ,"exp":"e E , } ]"}
+				,"E1" :{"msg":"JSON exponent numbers require a + symbol, a - symbol, or a number after the e or E."
+					   ,"exp":"+-0123456789"}
+				,"E2" :{"msg":"JSON exponent numbers require a number after the + or - symbol."
+					   ,"exp":"0123456789"}
+				,"E3" :{"msg":"JSON exponents can only have digits in them or be followed by a comma or valid closing brace."
+					   ,"exp":", ] }"} }
+		
+		While (st != "OK" && st != "")
+			st := num_table[(ls := st)][key[SubStr(txt,i++,1)]]
+		
+		(st == "OK")
+			? (msg := "No errors found."
+			, exp := "Nothing"
+			, found := SubStr(txt, start, i-start) )
+		:  (msg := err[ls].msg
+			, exp := err[ls].exp
+			, found := SubStr(txt, start, i-start) "<<Error" )
+		
+		Return (st == "OK" ? True : False)
+	}
+
+	find_tfn_err(txt, i, ByRef msg, ByRef exp, ByRef found) {
+		Local
+		valid := True
+		Loop, Parse, % (exp := {"t":"true", "f":"false" ,"n":"null"}[SubStr(txt, i, 1)])
+			(A_LoopField == SubStr(txt, i+A_Index-1, 1)) 
+				? ""
+			: (msg := "An error was found with a " expected " value."
+				,found := SubStr(txt, i, i+A_Index-1) "<<Error"
+				,valid := False)
+		Until (!valid)
+		
+		(valid)
+			? (msg := "No true/false/null errors found.", found := SubStr(txt, i, StrLen(exp)))
+			: ""
+		
+		Return valid
+	}
+
+	find_str_err(txt, i, ByRef msg, ByRef exp, ByRef found) {
+		Local
+		st    := "BG"
+		,start:= i
+		
+		,key := {   0:"h" ,   1:"h" ,   2:"h",   3:"h" ,   4:"h" ,   5:"h"
+				,   6:"h" ,   7:"h" ,   8:"h",   9:"h" , "a":"h" , "c":"h"
+				, "d":"h" , "e":"h" , "\":"\", "/":"/" , " ":"*" ,"""":"q"
+				,"`b":""  ,"`f":""  ,"`n":"" ,"`r":""  ,"`t":""  }
+		
+					;Upper B   Upper F    Lower b    Lower f
+		,asc_chk := { 66:"h"   , 70:"h"   , 98:"b"   ,102:"f"   
+					;Lower n   Lower r    Lower t    Lower u
+					,110:"n"   ,114:"r"   ,116:"t"   ,117:"u" }
+		
+		;                    Quotes    Slash     Backslsh  Backspace Formfeed  Linefeed  Crg Rtn   Hrz Tab   Unicode   Hex       Forbid    Any Other
+		str_table := {"BG" :{"q":"ST" ,"/":""   ,"\":""   ,"b":""   ,"f":""   ,"n":""   ,"r":""   ,"t":""   ,"u":""   ,"h":""   ,"x":""   ,"*":""   }
+					 ,"ST" :{"q":"OK" ,"/":"ST" ,"\":"ES" ,"b":"ST" ,"f":"ST" ,"n":"ST" ,"r":"ST" ,"t":"ST" ,"u":"ST" ,"h":"ST" ,"x":""   ,"*":"ST" }
+					 ,"ES" :{"q":"ST" ,"/":"ST" ,"\":"ST" ,"b":"ST" ,"f":"ST" ,"n":"ST" ,"r":"ST" ,"t":"ST" ,"u":"U1" ,"h":""   ,"x":""   ,"*":""   }
+					 ,"U1" :{"q":""   ,"/":""   ,"\":""   ,"b":"U2" ,"f":"U2" ,"n":""   ,"r":""   ,"t":""   ,"u":""   ,"h":"U2" ,"x":""   ,"*":""   }
+					 ,"U2" :{"q":""   ,"/":""   ,"\":""   ,"b":"U3" ,"f":"U3" ,"n":""   ,"r":""   ,"t":""   ,"u":""   ,"h":"U3" ,"x":""   ,"*":""   }
+					 ,"U3" :{"q":""   ,"/":""   ,"\":""   ,"b":"U4" ,"f":"U4" ,"n":""   ,"r":""   ,"t":""   ,"u":""   ,"h":"U4" ,"x":""   ,"*":""   }
+					 ,"U4" :{"q":""   ,"/":""   ,"\":""   ,"b":"ST" ,"f":"ST" ,"n":""   ,"r":""   ,"t":""   ,"u":""   ,"h":"ST" ,"x":""   ,"*":""   } }
+		
+		err := {"BG" :{msg:"Strings must start with a quotation mark."
+					   ,exp:""""}
+				,"ST" :{msg:"Strings can be made of almost any codepoint except the first 32 ASCII characters."
+					   . "`nBackslashes are used to escape characters."
+					   . "`nThe end of a string is denoted by an unescaped quotation mark."
+					   . "`nLiteral double quotes must be escaped out with a backslash."
+					   ,exp:"Any character except the first 32 ASCII chars."}
+				,"ES" :{msg:"JSON has 9 characters that can be escaped."
+					   . "`n\"" - Quotation Mark\Double Quotes"
+					   . "`n\\ - Backslash\Reverse Solidus"
+					   . "`n\/ - Slash\Solidus"
+					   . "`n\b - Backspace"
+					   . "`n\f - Formfeed"
+					   . "`n\n - Linefeed"
+					   . "`n\r - Carriage Return"
+					   . "`n\t - Horizontal Tab"
+					   . "`n\u - Unicode. Must always be followed with 4 hex numbers (0-9,A-F,a-f)."
+					   ,exp:""" \ / b f n r t u"}
+				,"U1" :{msg:"The first number of an escaped unicode character must be a hexidecimal digit."
+					   . "`nHex degits must be between 0-9, a-f, or A-F"
+					   ,exp:"0-9 a-f A-F"}
+				,"U2" :{msg:"The second number of an escaped unicode character must be a hexidecimal digit."
+					   . "`nHex degits must be between 0-9, a-f, or A-F"
+					   ,exp:"0-9 a-f A-F"}
+				,"U3" :{msg:"The third number of an escaped unicode character must be a hexidecimal digit."
+					   . "`nHex degits must be between 0-9, a-f, or A-F"
+					   ,exp:"0-9 a-f A-F"}
+				,"U4" :{msg:"The fourth number of an escaped unicode character must be a hexidecimal digit."
+					   . "`nHex degits must be between 0-9, a-f, or A-F"
+					   ,exp:"0-9 a-f A-F"} }
+		
+		; Add first 32 ascii control characters
+		; These are not allowed in strings and must be escaped or unicoded out
+		Loop, 32
+			asc_chk[A_Index-1] := "x"
+		
+		While (st != "OK" && st != "")
+			c := SubStr(txt,i++,1)
+			,st := str_table[(ls := st)][(key[c] ? key[c] : asc_chk[Asc(c)] ? asc_chk[Asc(c)] : "*")]
+		
+		(st == "OK")
+			? (msg := "No errors found."
+				, exp := "Nothing"
+				, found := SubStr(txt, start, i-start) )
+		:  (msg := err[ls].msg, exp := err[ls].exp, found := SubStr(txt, i, i-start+20) "<<Error" )
+		
+		Return (st == "OK" ? True : False)
 	}
 	
 	; Convert AHK object to JSON string
@@ -341,7 +552,7 @@ Class JSON_AHK
 	; Converts a json text file into a single string
 	stringify(json) {
 		Return IsObject(json)
-			? this.stringify_extract(json, this.is_array(json))
+			? this.stringify_obj(json, this.is_array(json))
 			: this.stringify_text(json)
 	}
 	stringify_text(txt) {
@@ -373,23 +584,22 @@ Class JSON_AHK
 			
 		Return str
 	}
-	stringify_extract(obj, type){
+	stringify_obj(obj, type){
 		Local
 		str := (type ? "[" : "{")
 		For key, value in obj
 			str .= (type ? "" : key ":")
 				. (IsObject(value)
-					? this.stringify_extract(value, this.is_array(value))
+					? this.stringify_obj(value, this.is_array(value))
 				: (InStr(value, """")
 					? """" StrReplace(StrReplace(StrReplace(StrReplace(""
-					. StrReplace(StrReplace(StrReplace(StrReplace(""
-					. SubStr(value, 2, -1),"\","\\"),"""","\""")
-					,"`b","\b"),"`f","\f"),"`n","\n"),"`r","\r")
-					,"`t","\t"),"/","\/") """"
+						. StrReplace(StrReplace(StrReplace(StrReplace(""
+						. SubStr(value, 2, -1)
+						,"\","\\"),"""","\"""),"`b","\b"),"`f","\f")
+						,"`n","\n"),"`r","\r"),"`t","\t"),"/","\/") """"
 					: value ) )
 				. ","
 		str := RTrim(str, ",") . (type ? "]" : "}")
-		;MsgBox, % "str: " str
 		Return str
 	}
 	
@@ -404,16 +614,16 @@ Class JSON_AHK
 		,char	:= ""			; Current character
 		,next	:= "s"			; Next expected action: (s)tart, (k)ey, (a)rray, (v)alue, (e)nd
 		,m_		:= ""			; Stores regex matches
-		,m_str	:= ""			; Stores substring and regex matches
+		,m_str	:= ""			; Stores substring of regex matches
 		,rgx_key:= ""			; Tracks what regex pattern to use
 		,max	:= StrLen(json) ; Max amount of characters
 		; RegEx bank
 		;; should patterns include \s* at the end to capture white space?
 		;; Would that be faster than letting the while loop continue?
-		,rgx	:=	{"k"	: "((?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))[ |\t|\n|\r]*:)"
-					,"n"	: "(?P<str>(?>-?(?>0|[1-9][0-9]*)(?>\.[0-9]+)?(?>[eE][+-]?[0-9]+)?))"
-					,"s"	: "(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))"
-					,"b"	: "(?P<str>true|false|null)"	}
+		,rgx	:=	{"k"	: "S)((?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))[ |\t|\n|\r]*:)"
+					,"n"	: "S)(?P<str>(?>-?(?>0|[1-9][0-9]*)(?>\.[0-9]+)?(?>[eE][+-]?[0-9]+)?))"
+					,"s"	: "S)(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))"
+					,"b"	: "S)(?P<str>true|false|null)"	}
 		; Whitespace checker
 		,is_ws	:=	{" "	:True		; Space
 					,"`t"	:True		; Tab
@@ -440,6 +650,7 @@ Class JSON_AHK
 							,exp	: "Keys must follow string rules."}
 					,jsn	:{msg	: "Invalid JSON file.`nJSON data starts with a brace."
 							,exp	: "[ {"}	}
+		
 		; Value validator and regex key assigner
 		,is_val :=	{"0"	:"n"	,"5":"n"	,0	:"n"	,5	:"n"	,"-" :"n"
 					,"1"	:"n"	,"6":"n"	,1	:"n"	,6	:"n"	,"t" :"b"
@@ -539,8 +750,10 @@ Class JSON_AHK
 				, "`n`tb - Beginning" . "`n`te - Ending" . "`n`tk - Key" . "`n`tv - Value"
 				, next)
 		}
+		
 		Return obj
 	}
+	
 	to_json_err(code) {
 		/*
 		; Error messages and expectations
@@ -561,42 +774,6 @@ Class JSON_AHK
 		*/
 		
 		Return
-	}
-	
-	string_decode(txt){
-		Local
-		
-		Return StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(txt
-					,"\b"	,"`b")	; Backspace
-					,"\f"	,"`f")	; Formfeed
-					,"\n"	,"`n")	; Linefeed
-					,"\r"	,"`r")	; Carriage Return
-					,"\t"	,"`t")	; Tab
-					,"\/"	,"/")	; Slash / Solidus
-					,"\"""	,"""")	; Double Quotes
-					,"\\"	,"\")	; Last, set \* as placeholder for \
-	}
-	
-	; Encodes specific chars to escaped chars
-	string_encode(txt) {
-		Local
-		
-		MsgBox, % "before:`n`n" txt
-		
-		txt	:= """" StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(""
-			. StrReplace(StrReplace(StrReplace(StrReplace(SubStr(txt, 2, -1)
-				,"\"	,"\\" )		; Backspace
-				,"`b"	,"\b" )		; Backspace
-				,"`f"	,"\f" )		; Formfeed
-				,"`n"	,"\n" )		; Linefeed
-				,"`r"	,"\r" )		; Carriage Return
-				,"`t"	,"\t" )		; Tab
-				,"/" 	,"\/" )		; Slash / Solidus
-				,""""	,"\""")		; Double Quotes
-				,"\\u"	,"\u") """" ; Fixes unicode
-		
-		MsgBox, % "after:`n`n" txt
-		Return ("""" txt """")
 	}
 	
 	;=============================\
@@ -907,8 +1084,8 @@ Class JSON_AHK
 					;~ ,116:25 ,114:26 ,117:27          ; 116 = t, 114 = r, 117 = u
 					;~ ,108:23 ,115:24 ,110:28 }        ; 108 = l, 115 = s, 110 = n
 		
-		;~ ;             spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    #    x    a    b    e    E    f    l    s    t    r    u    n    ALL
-		;~ ;             1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29
+		;~ ;                 spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    #    x    a    b    e    E    f    l    s    t    r    u    n    ALL
+		;~ ;                 1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29
 		;~ json_valid.BG := ["BG","BG","ON",""  ,"PA",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
 		;~ json_valid.ON := ["ON","ON",""  ,"OK",""  ,""  ,""  ,""  ,"ST",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
 		;~ json_valid.AN := ["AN","AN","ON",""  ,"AN",""  ,""  ,""  ,"ST",""  ,""  ,""  ,"NM",""  ,"NM","NM",""  ,""  ,""  ,""  ,""  ,"F1",""  ,""  ,"T1",""  ,""  ,"N1",""   ]
