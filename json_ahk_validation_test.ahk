@@ -43,16 +43,15 @@ test() {
     ;
     ; 
     
-    obj  := {}
-    ;jtxt := json_ahk.import()
-    jtxt := json_ahk.test_file
-    Clipboard := jtxt
-    MsgBox, % jtxt
-    
-    i    := 1
+    obj     := {}
+    ;jtxt   := json_ahk.import()
+    jtxt    := json_ahk.test_file
+    i       := 1
     
     obj := json_ahk.to_ahk(jtxt)
+    MsgBox JSON successfully converted to object.
     txt := json_ahk.to_json(obj)
+    MsgBox Object successfully converted to JSON.
     Clipboard := txt
     MsgBox, % "On clipboard!`n`n" txt
     ExitApp
@@ -296,14 +295,16 @@ Class JSON_AHK
         obj        := {}            ; Main object to build and return
         ;,obj.SetCapacity(1024)     ; Does setting a large object size speed up performance?
         ,path    := []              ; Path value should be stored in the object
-        ,path_t  := []              ; Tracks if current path is an array (true) or object (false)
+        ,type    := []              ; Tracks if current path is an array (true) or object (false)
+        ,p_i     := 0               ; [NEW] tracks current index for the path arrays (replaces the need to call .MaxIndex() over and over)
         ,i       := 0               ; Tracks current position in the json string
         ,char    := ""              ; Current character
         ,next    := "s"             ; Next expected action: (s)tart, (n)ext, (k)ey, (v)alue
         ,max     := StrLen(json)    ; Total number of characters in JSON
         ,m_      := ""              ; Stores regex matches
         ,m_str   := ""              ; Stores substring and regex matches
-        ,rgx_key := ""              ; Tracks what regex pattern to use
+        ,rgx_key := ""              ; Tracks what regex pattern to validate with
+        ,dq      := """"
         ; RegEx bank
         ;; should patterns include \s* at the end to capture white space?
         ;; Would that be faster than letting the while loop continue?
@@ -343,97 +344,69 @@ Class JSON_AHK
         this.json := json
         
         ; For tracking object path, would using a string with substring be faster than array and push/pop?
-        ; Can bit shifting be used as a replacement for path_t (tracks if current path is an array or object so a bunch of true/false)?
+        ; Can bit shifting be used as a replacement for type (tracks if current path is an array or object so a bunch of true/false)?
         
         While (i < max) {
-            If is_ws[(char := SubStr(json, ++i, 1))]                            ; Get first char
-                Continue                                                        ; Skip if whitespace
+            If is_ws[(char := SubStr(json,++i,1))]                                                      ; Get first char
+                Continue                                                                                ; Skip if whitespace
             
-            ;this.msg("char: " char "`ni: " i "`nnext: " next "`nIn arr: " path_t[path_t.MaxIndex()] "`npath: " this.view_obj(path))
+            ;Error checking. Delete this.
+            ;~ Clipboard := "i: " i "`nnext: " next "`nchar: " char "`np_i: " p_i "`nmax: " max "`n`n" this.view_obj(obj)
+            ;~ MsgBox, % Clipboard
             
-            If (next == "v")                                                    ; Get value
-                (is_val[char])                                                  ; Check if first char is a non-object
-                    ? (RegExMatch(json, rgx[is_val[char]], m_, i))              ; Get and validate the value type using the right regex
-                        ? (obj[path*] := (rgx_key=="s" && InStr(m_str,"\")      ; If string has escape, run string_decode 
-                            ? """" this.string_decode(SubStr(m_str,2,-1)) """"
-                            : m_str )                                           ; Otherwise, add string
-                            , i += StrLen(m_str) - 1                            ; Increment index and check for value ender
-                            , next := "e" )                                     ; Find next ender
-;                    : this.to_json_err(json, i, err.snb.msg, err.snb.exp, m_)  ; Otherwise, throw error for invalid number/string/bool/null
-                    : this.to_json_err(i, is_val[char])                         ; Otherwise, throw error for invalid number/string/bool/null
-                : (char == "{")                                                 ; If new object
-                    ? (obj[path*] := {}, next := "k" )
-                : (char == "[")                                                 ; If new array
-                    ? (obj[path*] := [], path.Push(1)
-                        , path_t.Push(True) , next := "a")
-                : this.error(json, i, err.val.msg, err.val.exp, char)           ; Otherwise, error b/c not a valid value
-            Else If (next == "e")                                               ; Check for a value ending (comma or closing brace)
-                (char == ",")                                                   ; If comma, another value is expected
-                    ? (path_t[path_t.MaxIndex()])                               ; If in array, increment the index and get next value
-                        ? (path[path.MaxIndex()]++, next := "v")
-                        : (path.Pop(), path_t.Pop(), next := "k")               ; If in object, remove key and get a new one
-                : ((char == "}") && !(path_t[path_t.MaxIndex()])                ; If end of object, ensure in object
-                || (char == "]") && path_t[path_t.MaxIndex()])                    ; or if end of array, ensure in array
-                    ? (path.Pop(), path_t.Pop(), next := "e")                    ; If valid, remove current path from stack
-                : this.error(json, i, err.end.msg                                ; If not valid, throw error
-                    , (char == "}" ? "]" : "}"), char)
-            Else If (next == "a")                                                ; If beginning of array
-                (char == "]")                                                    ; Check if empty array
-                    ? (path.Pop() ,path_t.Pop(), next := "e")                    ; If yes, remove from stack and look for new ending
-                : (rgx_key := is_val[char])                                        ; If not an empty array, get value regex type
-                    ? (RegExMatch(json, rgx[rgx_key], m_, i))                   ; Validate value value regex type
-                        ? (obj[path*] := (rgx_key=="s" && InStr(m_str,"\")      ; If value is string, check if escape char exists
-                            ? """" StrReplace(StrReplace(StrReplace(""            ; If escape exists, decode all escapes
-                            . StrReplace(StrReplace(StrReplace(""
-                            . StrReplace(StrReplace(SubStr(m_str, 2, -1)
-                                ,"\b" ,"`b") ,"\f" ,"`f") ,"\n" ,"`n")
-                                ,"\r" ,"`r") ,"\t" ,"`t") ,"\/" ,"/")
-                                ,"\""","""") ,"\\","\")  """"                   ; Double quote, backslash, fix unicode
-                            : m_str )                                           ; If nothing to escape, add string to obj
-                            , i += StrLen(m_str) - 1                            ; Increment index and check for value ender
-                            , next := "e"    )                                  ; Next find ender
-                    : this.error(json, i, err.snb.msg, err.snb.exp, m_)         ; Otherwise, throw error for invalid number/string/bool/null
-                : (char == "{")                                                 ; If new object
-                    ? next := "k"
-                : (char == "[")                                                 ; If new array
-                    ? (obj[path*] := []
-                        , path.Push(1)
-                        , path_t.Push(True)
-                        , next := "a" )
-                : this.error(json, i, err.val.msg, err.val.exp, char)           ; Otherwise, error b/c not a valid value
-            Else If (next == "k")                                               ; Get an object key
-                (char == "}")
-                    ? next := "e"
-                : RegExMatch(json, rgx.k, m_, i)                                ; Get and validate a key
-                    ? (path.Push(m_str)
-                        , path_t.Push(False)
-                        ;, this.msg("key:" m_str)
-                        , i += StrLen(m_) - 1
-                        , next := "v"    )
-                : this.error(json, i, err.key.msg, err.key.exp, char)           ; Throw error for invalid key
-            Else If (next == "s")                                               ; Start checks for initial object or array
-                (char == "{")
-                    ? (obj := {}
-                        , next := "k")
-                : (char == "[")
-                    ? (obj := []
-                        , path.Push(1)
-                        , path_t.Push(True)
-                        , next := "a")
-                : this.error(json, i, err.jsn.msg, err.jsn.exp, char)           ; Throw error for invalid start of JSON file
-            Else this.error(json, i                                             ; Throw error for invalid next [Troubleshooter]
-                , "YA MESSED UP!!!`nInvalid next variable."
-                , "`n`tb - Beginning" . "`n`te - Ending" . "`n`tk - Key" . "`n`tv - Value"
-                , next)
+            (next == "v")                                                                                   ; Get value
+                ? (is_val[char]) ? (RegExMatch(json,rgx[is_val[char]],m_,i))                                ; If value expected, valideat and extract
+                    ? (obj[path*] := (is_val[char]=="s" && InStr(m_str,"\")                                 ; If string has escape, run string_decode 
+                        ? dq this.string_decode(SubStr(m_str,2,-1)) dq : m_str )                            ; Otherwise, add string
+                       ,i += StrLen(m_str)-1 , next := "e" )                                                ; Increment index and check for value ender
+                    : this.to_json_err(i,is_val[char])                                                      ; Otherwise, throw error for invalid number/string/bool/null
+                : (char == "{") ? (obj[path*] := {}, next := "k" )                                          ; If new object
+                : (char == "[") ? (obj[path*] := [], next := "a", ++p_i, path[p_i] := 1, type[p_i] := 1 )   ; If new array
+                : this.to_json_err(i,next)                                                                  ; Otherwise, error b/c not a valid value
+            : (next == "e")                                                                                 ; Check for a value ending (comma or closing brace)
+                ? (char == ",")                                                                             ; If comma, another value is expected
+                    ? (type[p_i]) ? (path[p_i]++, next := "v")                                              ; If in array, increment the index and get next value
+                    : (path.Pop(),type.Pop(), --p_i, next := "k")                                           ; If in object, remove key and get a new one
+                : ((char == "}") && !(type[p_i]) || (char == "]") && type[p_i])                             ; If end of object/array and type matches
+                    ? (path.Pop(), type.Pop(), --p_i, next := "e")                                          ; If valid, remove current path from stack
+                : this.to_json_err(i,next)                                                                  ; If not valid, throw error
+            : (next == "a")                                                                                 ; If beginning of array
+                ? (char == "]") ? (path.Pop(), type.Pop(), --p_i, next := "e")                              ; If empty array, remove from stack
+                : (char == "{") ? next := "k"                                                               ; If new object, get key
+                : (char == "[") ? (obj[path*] := [], next := "a", path[++p_i] := 1, type[p_i] := 1 )        ; If new array
+                : (is_val[char]) ? (i--,next := "v")                                                        ; If value,decrement index and set next to v
+                : this.to_json_err(i,next)                                                                  ; Otherwise,error b/c not a valid value
+            : (next == "k")                                                                                 ; Get an object key
+                ? (char == "}") ? next := "e"                                                               ; If empty object, get next ender
+                : RegExMatch(json,rgx.k,m_,i)                                                               ; If valid string, get key
+                    ? (++p_i, path[p_i] := m_str, type[p_i] := 0, i += StrLen(m_)-1, next := "v" )          ; Update path and get value
+                : this.to_json_err(i,next)                                                                  ; Throw error for invalid key
+            : (next == "s")                                                                                 ; Start checks for initial object or array
+                ? (char == "{") ? (obj := {}, next := "k")                                                  ; If JSON is object, get key
+                : (char == "[") ? (obj:= [], next := "a", path[++p_i] := 1, type[p_i] := 1 )                ; If JSON is array, set path and get value
+                : this.to_json_err(i, next)                                                                 ; Throw error for invalid start of JSON file
+            : ""
         }
         
-        ; Post completion clean up
-        this.json := ""
+        this.json := ""     ; Post conversion clean up
+        
+        Clipboard := "i: " i "`nnext: " next "`nchar: " char "`np_i: " p_i "`nmax: " max "`n`n" this.view_obj(obj)
+        MsgBox, % Clipboard
         
         Return obj
     }
     
     to_json_err(index, state) {
+        ; error states:
+        ; s - string
+        ; n - number
+        ; b - true/false/null
+        ; e
+        
+        ; err states
+        ; s - start
+        ; a - array
+        ; 
         state := (state == "s" ? True : False)
         validate := this.make_valid_table()
         Return
@@ -486,46 +459,57 @@ Class JSON_AHK
     ; ===== Error checking =====
     make_valid_table() {
         ; Validation table for a JSON file
+        ; -1  = New Object/Get Key
+        ; -2  = New Array
+        ; -3  = String Start
+        ; -4  = Empty Object
+        ; -5  = Additional Value
+        ; -6  = End of Value (Str/Num/TFN)
+        ; -7  = Start of Value (Str/Num/TFN)
+        ; -8  = End of Object/Array
+        ; -9  = End of Value, Over 1 Char
+        ; -10 = Valid JSON Start
+        
         table    := {}
-        ;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30    
-        ;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA    
-        table.BG := ["BG","BG",-10 ,""  ,-10 ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Beginning
-        table.ON := ["ON","ON",""  ,-4  ,""  ,""  ,""  ,""  ,-3  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Object New
-        table.OK := ["OK","OK",""  ,""  ,""  ,""  ,""  ,""  ,-3  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Object Key
-        table.OC := ["OC","OC",""  ,""  ,""  ,""  ,""  ,"VL",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Object Colon
-        table.AN := ["AN","AN",-1  ,""  ,-2  ,-8  ,""  ,""  ,-7  ,""  ,""  ,""  ,-7  ,""  ,-7  ,-7  ,""  ,""  ,""  ,""  ,""  ,-7  ,""  ,-7  ,""  ,""  ,-7  ,""  ,""  ,""   ] ; Array New
-        table.VL := ["VL","VL",-1  ,""  ,-2  ,""  ,""  ,""  ,-7  ,""  ,""  ,""  ,-7  ,""  ,-7  ,-7  ,""  ,""  ,""  ,""  ,""  ,-7  ,""  ,-7  ,""  ,""  ,-7  ,""  ,""  ,""   ] ; Value
-        table.CC := ["CC","CC",""  ,-8  ,""  ,-8  ,-5  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Comma Close
-        ;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30    
-        ;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA    
-        table.ST := ["ST",""  ,"ST","ST","ST","ST","ST","ST",-6  ,"ES","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST",""   ] ; String
-        table.ES := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ST","ST","ST",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ST",""  ,""  ,"ST",""  ,"ST","ST",""  ,"ST","U1",""  ,""   ] ; String Escape
-        table.U1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"U2","U2","U2","U2","U2","U2","U2","U2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Unicode Char 1
-        table.U2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"U3","U3","U3","U3","U3","U3","U3","U3",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Unicode Char 2
-        table.U3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"U4","U4","U4","U4","U4","U4","U4","U4",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Unicode Char 3
-        table.U4 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ST","ST","ST","ST","ST","ST","ST","ST",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Unicode Char 4
-        ;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30    
-        ;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA    
-        table.NN := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ND","NI",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Number > Negative
-        table.NI := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,"D1","NI","NI",""  ,""  ,""  ,"NE","NE",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Number > Integer
-        table.ND := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,"D1",""  ,""  ,""  ,""  ,""  ,"NE","NE",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Number > Decimal
-        table.D1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"D2","D2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Decimal 1
-        table.D2 := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"D2","D2",""  ,""  ,""  ,"NE","NE",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Decimal 2
-        table.NE := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E1","E1",""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Number > Exponent
-        table.E1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Exponent 1
-        table.E2 := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; Exponent 2
-        ;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30    
-        ;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA    
-        table.T1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"T2",""  ,""  ,""  ,""  ,""   ] ; true > tR
-        table.T2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"T3",""  ,""   ] ; true > trU
-        table.T3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; true > true
-        table.F1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; false > fa
-        table.F2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F3",""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; false > fal
-        table.F3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F4",""  ,""  ,""  ,""   ] ; false > fals
-        table.F4 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; false > false
-        table.N1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N2",""  ,""   ] ; null > nu
-        table.N2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N3",""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; null > nul
-        table.N3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ] ; null > null
+        ;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30                      
+        ;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA                      
+        table.BG := ["BG","BG",-10 ,""  ,-10 ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Beginning
+        table.AN := ["AN","AN",-1  ,""  ,-2  ,-8  ,""  ,""  ,-7  ,""  ,""  ,""  ,-7  ,""  ,-7  ,-7  ,""  ,""  ,""  ,""  ,""  ,-7  ,""  ,-7  ,""  ,""  ,-7  ,""  ,""  ,"" ] ; Array New
+        table.ON := ["ON","ON",""  ,-4  ,""  ,""  ,""  ,""  ,-3  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Object New
+        table.OK := ["OK","OK",""  ,""  ,""  ,""  ,""  ,""  ,-3  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Object Key
+        table.OC := ["OC","OC",""  ,""  ,""  ,""  ,""  ,"VL",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Object Colon
+        table.VL := ["VL","VL",-1  ,""  ,-2  ,""  ,""  ,""  ,-7  ,""  ,""  ,""  ,-7  ,""  ,-7  ,-7  ,""  ,""  ,""  ,""  ,""  ,-7  ,""  ,-7  ,""  ,""  ,-7  ,""  ,""  ,"" ] ; Value
+        table.CC := ["CC","CC",""  ,-8  ,""  ,-8  ,-5  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Comma Close
+        ;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30                      
+        ;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA                      
+        table.ST := ["ST",""  ,"ST","ST","ST","ST","ST","ST",-6  ,"ES","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","" ] ; String
+        table.ES := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ST","ST","ST",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ST",""  ,""  ,"ST",""  ,"ST","ST",""  ,"ST","U1",""  ,"" ] ; String Escape
+        table.U1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"U2","U2","U2","U2","U2","U2","U2","U2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Unicode Char 1
+        table.U2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"U3","U3","U3","U3","U3","U3","U3","U3",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Unicode Char 2
+        table.U3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"U4","U4","U4","U4","U4","U4","U4","U4",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Unicode Char 3
+        table.U4 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ST","ST","ST","ST","ST","ST","ST","ST",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Unicode Char 4
+        ;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30                      
+        ;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA                      
+        table.NN := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ND","NI",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Number > Negative
+        table.NI := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,"D1","NI","NI",""  ,""  ,""  ,"NE","NE",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Number > Integer
+        table.ND := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,"D1",""  ,""  ,""  ,""  ,""  ,"NE","NE",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Number > Decimal
+        table.D1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"D2","D2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Decimal 1
+        table.D2 := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"D2","D2",""  ,""  ,""  ,"NE","NE",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Decimal 2
+        table.NE := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E1","E1",""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Number > Exponent
+        table.E1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Exponent 1
+        table.E2 := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Exponent 2
+        ;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30                      
+        ;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA                      
+        table.T1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"T2",""  ,""  ,""  ,""  ,"" ] ; true > tR
+        table.T2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"T3",""  ,"" ] ; true > trU
+        table.T3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; true > true
+        table.F1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; false > fa
+        table.F2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F3",""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; false > fal
+        table.F3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F4",""  ,""  ,""  ,"" ] ; false > fals
+        table.F4 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; false > false
+        table.N1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N2",""  ,"" ] ; null > nu
+        table.N2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N3",""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; null > nul
+        table.N3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; null > null
         
         Return table
     }
@@ -876,3 +860,37 @@ Class JSON_AHK
     ;~ }
 
 }
+
+/*
+is_ws[(char := SubStr(json,++this.i,1))]
+	? ""
+: next == "v"
+	? is_val[char]
+		? RegExMatch(json,rgx[is_val[char]],m_,this.i)
+		; Find a way to incorporate the key check up here so next=k can be removed entirely
+		? (obj[path*] := (is_val[char]=="s" && InStr(m_str,"\")
+			? dq this.string_decode(SubStr(m_str,2,-1)) dq : m_str )
+			,this.i += StrLen(m_str)-1 , next := "e" )
+		: this.to_json_err(is_val[char])
+	: char == "{" ? (obj[path*] := {}, next := "k" )
+	: char == "[" ? (obj[path*] := [], next := "a", path[++p_i] := 1, type[p_i] := 1 )
+	: this.to_json_err(next)
+: next == "e"
+	? char == ","
+		? type[p_i] ? (path[p_i]++, next := "v")
+			: (path.Pop(), type.Pop(), --p_i, next := "k")
+	: ((char == "}" && !type[p_i]) || (char == "]" && type[p_i]))
+		? (path.Pop(), type.Pop(), --p_i, next := "e")
+	: this.to_json_err(next)
+: next == "a"
+	? char == "]" ? (path.Pop(), type.Pop(), --p_i, next := "e")
+	: (--this.i, next := "v")
+: next == "k"
+	? char == "}" ? next := "e"
+	: RegExMatch(json,rgx.k,m_,this.i)
+		? (path[++p_i] := m_str, type[p_i] := 0, this.i += StrLen(m_)-1, next := "v" )
+	: this.to_json_err(next)
+: (next == "s" && InStr("{[", char))
+	? (next := "v", --this.i)
+	: this.to_json_err(next)
+: ""
