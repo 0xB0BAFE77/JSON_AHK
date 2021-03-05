@@ -297,7 +297,7 @@ Class JSON_AHK
         ,path    := []              ; Path value should be stored in the object
         ,type    := []              ; Tracks if current path is an array (true) or object (false)
         ,p_i     := 0               ; [NEW] tracks current index for the path arrays (replaces the need to call .MaxIndex() over and over)
-        ,i       := 0               ; Tracks current position in the json string
+        ,this.i  := 0               ; Tracks current position in the json string
         ,char    := ""              ; Current character
         ,next    := "s"             ; Next expected action: (s)tart, (n)ext, (k)ey, (v)alue
         ,max     := StrLen(json)    ; Total number of characters in JSON
@@ -346,51 +346,85 @@ Class JSON_AHK
         ; For tracking object path, would using a string with substring be faster than array and push/pop?
         ; Can bit shifting be used as a replacement for type (tracks if current path is an array or object so a bunch of true/false)?
         
-        While (i < max) {
-            If is_ws[(char := SubStr(json,++i,1))]                                                      ; Get first char
-                Continue                                                                                ; Skip if whitespace
+        While (this.i < max) {
+			
+			;MsgBox, % "this.i: " this.i "`nnext: " next "`nmax: " max "`nchar: " char "`nthis.view_obj(obj): " this.view_obj(obj)
+			is_ws[(char := SubStr(json,++this.i,1))]
+				? ""
+			: next == "v"
+				? is_val[char]
+					? RegExMatch(json,rgx[is_val[char]],m_,this.i)
+						? (obj[path*] := (is_val[char]=="s" && InStr(m_str,"\")
+							? dq this.string_decode(SubStr(m_str,2,-1)) dq : m_str )
+							,this.i += StrLen(m_str)-1 , next := "e" )
+					: this.to_json_err(is_val[char])
+				: InStr("{[", char) ? (obj[path*] := {}, next := (char == "{" ? "k" : "a") )
+				: this.to_json_err("value")
+			: next == "e"
+				? char == ","
+					? type[p_i] ? (path[p_i]++, next := "v")
+						: (path.Pop(), type.Pop(), --p_i, next := "k")
+				: ((char == "}" && !type[p_i]) || (char == "]" && type[p_i]))
+					? (path.Pop(), type.Pop(), --p_i, next := "e")
+				: this.to_json_err("end")
+			: next == "a"
+				? char == "]" ? next := "e"
+				: (path[++p_i] := 1, type[p_i] := 1, --this.i, next := "v")
+			: next == "k"
+				? char == "}" ? next := "e"
+				: RegExMatch(json,rgx.k,m_,this.i)
+					? (path[++p_i] := m_str, type[p_i] := 0, this.i += StrLen(m_)-1, next := "v" )
+				: this.to_json_err("key")
+			: next == "s"
+				? char == "{" ? (next := "k")
+				: char == "[" ? (next := "a")
+				: this.to_json_err("start")
+			: ""
+			
+            ;~ If is_ws[(char := SubStr(json,++i,1))]                                                      ; Get first char
+                ;~ Continue                                                                                ; Skip if whitespace
             
-            ;Error checking. Delete this.
-            ;~ Clipboard := "i: " i "`nnext: " next "`nchar: " char "`np_i: " p_i "`nmax: " max "`n`n" this.view_obj(obj)
-            ;~ MsgBox, % Clipboard
+            ;~ ;Error checking. Delete this.
+            ;~ ;Clipboard := "i: " i "`nnext: " next "`nchar: " char "`np_i: " p_i "`nmax: " max "`n`n" this.view_obj(obj)
+            ;~ ;MsgBox, % Clipboard
             
-            (next == "v")                                                                                   ; Get value
-                ? (is_val[char]) ? (RegExMatch(json,rgx[is_val[char]],m_,i))                                ; If value expected, valideat and extract
-                    ? (obj[path*] := (is_val[char]=="s" && InStr(m_str,"\")                                 ; If string has escape, run string_decode 
-                        ? dq this.string_decode(SubStr(m_str,2,-1)) dq : m_str )                            ; Otherwise, add string
-                       ,i += StrLen(m_str)-1 , next := "e" )                                                ; Increment index and check for value ender
-                    : this.to_json_err(i,is_val[char])                                                      ; Otherwise, throw error for invalid number/string/bool/null
-                : (char == "{") ? (obj[path*] := {}, next := "k" )                                          ; If new object
-                : (char == "[") ? (obj[path*] := [], next := "a", ++p_i, path[p_i] := 1, type[p_i] := 1 )   ; If new array
-                : this.to_json_err(i,next)                                                                  ; Otherwise, error b/c not a valid value
-            : (next == "e")                                                                                 ; Check for a value ending (comma or closing brace)
-                ? (char == ",")                                                                             ; If comma, another value is expected
-                    ? (type[p_i]) ? (path[p_i]++, next := "v")                                              ; If in array, increment the index and get next value
-                    : (path.Pop(),type.Pop(), --p_i, next := "k")                                           ; If in object, remove key and get a new one
-                : ((char == "}") && !(type[p_i]) || (char == "]") && type[p_i])                             ; If end of object/array and type matches
-                    ? (path.Pop(), type.Pop(), --p_i, next := "e")                                          ; If valid, remove current path from stack
-                : this.to_json_err(i,next)                                                                  ; If not valid, throw error
-            : (next == "a")                                                                                 ; If beginning of array
-                ? (char == "]") ? (path.Pop(), type.Pop(), --p_i, next := "e")                              ; If empty array, remove from stack
-                : (char == "{") ? next := "k"                                                               ; If new object, get key
-                : (char == "[") ? (obj[path*] := [], next := "a", path[++p_i] := 1, type[p_i] := 1 )        ; If new array
-                : (is_val[char]) ? (i--,next := "v")                                                        ; If value,decrement index and set next to v
-                : this.to_json_err(i,next)                                                                  ; Otherwise,error b/c not a valid value
-            : (next == "k")                                                                                 ; Get an object key
-                ? (char == "}") ? next := "e"                                                               ; If empty object, get next ender
-                : RegExMatch(json,rgx.k,m_,i)                                                               ; If valid string, get key
-                    ? (++p_i, path[p_i] := m_str, type[p_i] := 0, i += StrLen(m_)-1, next := "v" )          ; Update path and get value
-                : this.to_json_err(i,next)                                                                  ; Throw error for invalid key
-            : (next == "s")                                                                                 ; Start checks for initial object or array
-                ? (char == "{") ? (obj := {}, next := "k")                                                  ; If JSON is object, get key
-                : (char == "[") ? (obj:= [], next := "a", path[++p_i] := 1, type[p_i] := 1 )                ; If JSON is array, set path and get value
-                : this.to_json_err(i, next)                                                                 ; Throw error for invalid start of JSON file
-            : ""
+            ;~ (next == "v")                                                                                   ; Get value
+                ;~ ? (is_val[char]) ? (RegExMatch(json,rgx[is_val[char]],m_,i))                                ; If value expected, valideat and extract
+                    ;~ ? (obj[path*] := (is_val[char]=="s" && InStr(m_str,"\")                                 ; If string has escape, run string_decode 
+                        ;~ ? dq this.string_decode(SubStr(m_str,2,-1)) dq : m_str )                            ; Otherwise, add string
+                       ;~ ,i += StrLen(m_str)-1 , next := "e" )                                                ; Increment index and check for value ender
+                    ;~ : this.to_json_err(i,is_val[char])                                                      ; Otherwise, throw error for invalid number/string/bool/null
+                ;~ : (char == "{") ? (obj[path*] := {}, next := "k" )                                          ; If new object
+                ;~ : (char == "[") ? (obj[path*] := [], next := "a", ++p_i, path[p_i] := 1, type[p_i] := 1 )   ; If new array
+                ;~ : this.to_json_err(i,next)                                                                  ; Otherwise, error b/c not a valid value
+            ;~ : (next == "e")                                                                                 ; Check for a value ending (comma or closing brace)
+                ;~ ? (char == ",")                                                                             ; If comma, another value is expected
+                    ;~ ? (type[p_i]) ? (path[p_i]++, next := "v")                                              ; If in array, increment the index and get next value
+                    ;~ : (path.Pop(),type.Pop(), --p_i, next := "k")                                           ; If in object, remove key and get a new one
+                ;~ : ((char == "}") && !(type[p_i]) || (char == "]") && type[p_i])                             ; If end of object/array and type matches
+                    ;~ ? (path.Pop(), type.Pop(), --p_i, next := "e")                                          ; If valid, remove current path from stack
+                ;~ : this.to_json_err(i,next)                                                                  ; If not valid, throw error
+            ;~ : (next == "a")                                                                                 ; If beginning of array
+                ;~ ? (char == "]") ? (path.Pop(), type.Pop(), --p_i, next := "e")                              ; If empty array, remove from stack
+                ;~ : (char == "{") ? next := "k"                                                               ; If new object, get key
+                ;~ : (char == "[") ? (obj[path*] := [], next := "a", path[++p_i] := 1, type[p_i] := 1 )        ; If new array
+                ;~ : (is_val[char]) ? (i--,next := "v")                                                        ; If value,decrement index and set next to v
+                ;~ : this.to_json_err(i,next)                                                                  ; Otherwise,error b/c not a valid value
+            ;~ : (next == "k")                                                                                 ; Get an object key
+                ;~ ? (char == "}") ? next := "e"                                                               ; If empty object, get next ender
+                ;~ : RegExMatch(json,rgx.k,m_,i)                                                               ; If valid string, get key
+                    ;~ ? (++p_i, path[p_i] := m_str, type[p_i] := 0, i += StrLen(m_)-1, next := "v" )          ; Update path and get value
+                ;~ : this.to_json_err(i,next)                                                                  ; Throw error for invalid key
+            ;~ : (next == "s")                                                                                 ; Start checks for initial object or array
+                ;~ ? (char == "{") ? (obj := {}, next := "k")                                                  ; If JSON is object, get key
+                ;~ : (char == "[") ? (obj:= [], next := "a", path[++p_i] := 1, type[p_i] := 1 )                ; If JSON is array, set path and get value
+                ;~ : this.to_json_err(i, next)                                                                 ; Throw error for invalid start of JSON file
+            ;~ : ""
         }
         
         this.json := ""     ; Post conversion clean up
         
-        Clipboard := "i: " i "`nnext: " next "`nchar: " char "`np_i: " p_i "`nmax: " max "`n`n" this.view_obj(obj)
+        Clipboard := "this.i: " this.i "`nnext: " next "`nchar: " char "`np_i: " p_i "`nmax: " max "`n`n" this.view_obj(obj)
         MsgBox, % Clipboard
         
         Return obj
@@ -860,37 +894,3 @@ Class JSON_AHK
     ;~ }
 
 }
-
-/*
-is_ws[(char := SubStr(json,++this.i,1))]
-	? ""
-: next == "v"
-	? is_val[char]
-		? RegExMatch(json,rgx[is_val[char]],m_,this.i)
-		; Find a way to incorporate the key check up here so next=k can be removed entirely
-		? (obj[path*] := (is_val[char]=="s" && InStr(m_str,"\")
-			? dq this.string_decode(SubStr(m_str,2,-1)) dq : m_str )
-			,this.i += StrLen(m_str)-1 , next := "e" )
-		: this.to_json_err(is_val[char])
-	: char == "{" ? (obj[path*] := {}, next := "k" )
-	: char == "[" ? (obj[path*] := [], next := "a", path[++p_i] := 1, type[p_i] := 1 )
-	: this.to_json_err(next)
-: next == "e"
-	? char == ","
-		? type[p_i] ? (path[p_i]++, next := "v")
-			: (path.Pop(), type.Pop(), --p_i, next := "k")
-	: ((char == "}" && !type[p_i]) || (char == "]" && type[p_i]))
-		? (path.Pop(), type.Pop(), --p_i, next := "e")
-	: this.to_json_err(next)
-: next == "a"
-	? char == "]" ? (path.Pop(), type.Pop(), --p_i, next := "e")
-	: (--this.i, next := "v")
-: next == "k"
-	? char == "}" ? next := "e"
-	: RegExMatch(json,rgx.k,m_,this.i)
-		? (path[++p_i] := m_str, type[p_i] := 0, this.i += StrLen(m_)-1, next := "v" )
-	: this.to_json_err(next)
-: (next == "s" && InStr("{[", char))
-	? (next := "v", --this.i)
-	: this.to_json_err(next)
-: ""
