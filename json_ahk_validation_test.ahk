@@ -6,6 +6,9 @@
 SetBatchLines, -1
 ListLines, Off
 
+;FIX THE DAMN VIEW_OBJ METHOD!!!
+;Also, your obj to json converter is broken.
+;Get to it, dumbass.
 test()
 
 ExitApp
@@ -48,12 +51,9 @@ test() {
     jtxt    := json_ahk.test_file
     i       := 1
     
-    obj := json_ahk.to_ahk(jtxt)
-    MsgBox JSON successfully converted to object.
-    txt := json_ahk.to_json(obj)
-    MsgBox Object successfully converted to JSON.
-    Clipboard := txt
-    MsgBox, % "On clipboard!`n`n" txt
+    qpx(1), obj := json_ahk.to_ahk(jtxt), t1 := qpx(0)
+    MsgBox, % "JSON successfully converted to object.`nTime to convert: " t1
+    MsgBox, % "json_ahk.to_json(obj):`n" json_ahk.to_json(obj)
     ExitApp
     
     qpx(1)
@@ -194,7 +194,7 @@ Class JSON_AHK
     ;==================================================================================================================
     
     ; Test file (very thorough)
-    Static test_file := "[`n`t""JSON Test Pattern pass1"",`n`t{""object with 1 member"":[""array with 1 element""]},`n`t{},`n`t[],`n`t-42,`n`ttrue,`n`tfalse,`n`tnull,`n`t{`n`t`t""integer"": 1234567890,`n`t`t""real"": -9876.543210,`n`t`t""e"": 0.123456789e-12,`n`t`t""E"": 1.234567890E+34,`n`t`t"""":  23456789012E66,`n`t`t""zero"": 0,`n`t`t""one"": 1,`n`t`t""space"": "" "",`n`t`t""quote"": ""\"""",`n`t`t""backslash"": ""\\"",`n`t`t""controls"": ""\b\f\n\r\t"",`n`t`t""slash"": ""/ & \/"",`n`t`t""alpha"": ""abcdefghijklmnopqrstuvwyz"",`n`t`t""ALPHA"": ""ABCDEFGHIJKLMNOPQRSTUVWYZ"",`n`t`t""digit"": ""0123456789"",`n`t`t""0123456789"": ""digit"",`n`t`t""special"": ""````1~!@#$``%^&*()_+-={':[,]}|;.</>?"",`n`t`t""hex"": ""\u0123\u4567\u89AB\uCDEF\uabcd\uef4A"",`n`t`t""true"": true,`n`t`t""false"": false,`n`t`t""null"": null,`n`t`t""array"":[  ],`n`t`t""object"":{  },`n`t`t""address"": ""50 St. James Street"",`n`t`t""url"": ""http://www.JSON.org/"",`n`t`t""comment"": ""// /* <!-- --"",`n`t`t""# -- --> */"": "" "",`n`t`t"" s p a c e d "" :[1,2 , 3`n`n,`n`n4 , 5`t`t,`t`t  6`t`t   ,7`t`t],""compact"":[1,2,3,4,5,6,7],`n`t`t""jsontext"": ""{\""object with 1 member\"":[\""array with 1 element\""]}"",`n`t`t""quotes"": ""&#34; \u0022 ``%22 0x22 034 &#x22;"",`n`t`t""\/\\\""\uCAFE\uBABE\uAB98\uFCDE\ubcda\uef4A\b\f\n\r\t``1~!@#$``%^&*()_+-=[]{}|;:',./<>?""`n: ""A key can be any string""`n`t},`n`t0.5 ,98.6`n,`n99.44`n,`n`n1066,`n1e1,`n0.1e1,`n1e-1,`n1e00,2e+00,2e-00`n,""rosebud""]"
+    Static test_file := "[`n`t""JSON Test Pattern pass1"",`n`t{""object with 2 members"":[""obj member 1/2 element 1/2"",""obj member 1/2 element 2/2""],[""obj member 2/2 element 1/2"",""obj member 2/2 element 2/2""]},`n`t{},`n`t[],`n`t-42,`n`ttrue,`n`tfalse,`n`tnull,`n`t{`n`t`t""integer"": 1234567890,`n`t`t""real"": -9876.543210,`n`t`t""e"": 0.123456789e-12,`n`t`t""E"": 1.234567890E+34,`n`t`t"""":  23456789012E66,`n`t`t""zero"": 0,`n`t`t""one"": 1,`n`t`t""space"": "" "",`n`t`t""quote"": ""\"""",`n`t`t""backslash"": ""\\"",`n`t`t""controls"": ""\b\f\n\r\t"",`n`t`t""slash"": ""/ & \/"",`n`t`t""alpha"": ""abcdefghijklmnopqrstuvwyz"",`n`t`t""ALPHA"": ""ABCDEFGHIJKLMNOPQRSTUVWYZ"",`n`t`t""digit"": ""0123456789"",`n`t`t""0123456789"": ""digit"",`n`t`t""special"": ""````1~!@#$``%^&*()_+-={':[,]}|;.</>?"",`n`t`t""hex"": ""\u0123\u4567\u89AB\uCDEF\uabcd\uef4A"",`n`t`t""true"": true,`n`t`t""false"": false,`n`t`t""null"": null,`n`t`t""array"":[  ],`n`t`t""object"":{  },`n`t`t""address"": ""50 St. James Street"",`n`t`t""url"": ""http://www.JSON.org/"",`n`t`t""comment"": ""// /* <!-- --"",`n`t`t""# -- --> */"": "" "",`n`t`t"" s p a c e d "" :[1,2 , 3`n`n,`n`n4 , 5`t`t,`t`t  6`t`t   ,7`t`t],""compact"":[1,2,3,4,5,6,7],`n`t`t""jsontext"": ""{\""object with 1 member\"":[\""array with 1 element\""]}"",`n`t`t""quotes"": ""&#34; \u0022 ``%22 0x22 034 &#x22;"",`n`t`t""\/\\\""\uCAFE\uBABE\uAB98\uFCDE\ubcda\uef4A\b\f\n\r\t``1~!@#$``%^&*()_+-=[]{}|;:',./<>?""`n: ""A key can be any string""`n`t},`n`t0.5 ,98.6`n,`n99.44`n,`n`n1066,`n1e1,`n0.1e1,`n1e-1,`n1e00,2e+00,2e-00`n,""rosebud""]"
     
     ; Import JSON file
     import() {
@@ -229,19 +229,26 @@ Class JSON_AHK
         : this.basic_error("You did not supply a valid object or array")
     }
     
+    preview() {
+        
+        Return
+    }
+    
     ; Recursively extracts values from an object
     ; type = Incoming object type: 0 for object, 1 for array
     ; Indent is set by the json_ahk.indent_unit property
     ; It should be left blank as recursion sets indent depth
     to_json_extract(obj, type, ind:="") {
         Local
+        Static ws       := "[ |\t|\n|\r]*"
+        Static ,rgx.arr := ws "\[" ws "\]" ws
+        Static ,rgx.obj := ws "\{" ws "\}" ws
+        
         ind_big := ind . this.indent_unit                                   ; Set big indent
         ,str    := (this.ob_new_line                                        ; Build beginning of arr/obj
-                    ? "`n" (this.ob_val_inline
-                        ? ind_big
-                        : ind)
+                    ? "`n" (this.ob_val_inline ? ind_big : ind)
                     : "")                                                   ; Create brace prefix
-                . (this.no_braces ? "" : type ? "[" : "{")                  ; Add brace
+                . (this.no_braces ? "" : type ? "[" : "{")                  ; Add correct brace
         
         For key, value in obj
             str .= (this.is_array(value)                                    ; Check if value is array
@@ -261,17 +268,14 @@ Class JSON_AHK
                         : value ) )                                         ; If not a string, add value
                     . ","                                                   ; Always end with a comma
         
-        str := RTrim(str, ",")                          ; Strip off last extra comma
-            . (this.cb_new_line
-                ? "`n" (this.cb_val_inline              ; Check user settings
-                    ? ind_big
-                    : ind)
-                : "")                                   ; Create closing prefix
-            . (this.no_braces ? "" : type ? "]" : "}")  ; Select brace
+        str := RTrim(str, ",")                                  ; Strip off last comma
+            . (this.cb_new_line                                 ; cb on new line?
+                ? "`n" (this.cb_val_inline ? ind_big : ind)     ; cb inline with values?
+                : "")                                           ; Create closing prefix
+            . (this.no_braces ? "" : type ? "]" : "}")          ; Select brace
         
         ; Empty object formatter
-        , (this.no_brace_ws                              ; Check user setting
-            && str ~= this.rgx[(type?"e_arr":"e_obj")])  ; RegEx for empty object/array
+        (this.no_brace_ws && str ~= this.rgx[(type?"e_arr":"e_obj")])  ; RegEx for empty object/array
             ? str := (this.ob_new_line ? "`n" ind : "")  ; If true, create prefix
                 ;; In AHK v1, there's no way to distinguish between an empty array and empty object
                 ;; When constructing JSON output, empty arrays will always show as empty objects
@@ -292,7 +296,7 @@ Class JSON_AHK
     to_ahk(json){
         Local
         
-        obj        := {}            ; Main object to build and return
+        obj      := {}              ; Main object to build and return
         ;,obj.SetCapacity(1024)     ; Does setting a large object size speed up performance?
         ,path    := []              ; Path value should be stored in the object
         ,type    := []              ; Tracks if current path is an array (true) or object (false)
@@ -302,9 +306,8 @@ Class JSON_AHK
         ,next    := "s"             ; Next expected action: (s)tart, (n)ext, (k)ey, (v)alue
         ,max     := StrLen(json)    ; Total number of characters in JSON
         ,m_      := ""              ; Stores regex matches
-        ,m_str   := ""              ; Stores substring and regex matches
-        ,rgx_key := ""              ; Tracks what regex pattern to validate with
-        ,dq      := """"
+        ,m_str   := ""              ; Stores regex match subpattern
+        ,rgx_key := ""              ; Tracks what regex pattern to use for validation
         ; RegEx bank
         ;; should patterns include \s* at the end to capture white space?
         ;; Would that be faster than letting the while loop continue?
@@ -312,11 +315,13 @@ Class JSON_AHK
                     ,"n"    : "((?P<str>(?>-?(?>0|[1-9][0-9]*)(?>\.[0-9]+)?(?>[eE][+-]?[0-9]+)?)))"
                     ,"s"    : "((?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*"")))"
                     ,"b"    : "((?P<str>true|false|null))"    }
+        
         ; Whitespace checker
         ,is_ws  :=  {" " :True      ; Space
                     ,"`t":True      ; Tab
                     ,"`n":True      ; New Line
                     ,"`r":True }    ; Carriage Return
+        
         ; Error messages and expectations
         ,err    :=  {snb    :{msg   : "Invalid string|number|true|false|null.`nNeed to write a function that auto-detects this for me."
                             ,exp    : "string number true false null"}
@@ -346,8 +351,7 @@ Class JSON_AHK
         ; For tracking object path, would using a string with substring be faster than array and push/pop?
         ; Can bit shifting be used as a replacement for type (tracks if current path is an array or object so a bunch of true/false)?
         
-        While (this.i < max) {
-			
+        While (this.i < max)
 			;MsgBox, % "this.i: " this.i "`nnext: " next "`nmax: " max "`nchar: " char "`nthis.view_obj(obj): " this.view_obj(obj)
 			is_ws[(char := SubStr(json,++this.i,1))]
 				? ""
@@ -355,7 +359,7 @@ Class JSON_AHK
 				? is_val[char]
 					? RegExMatch(json,rgx[is_val[char]],m_,this.i)
 						? (obj[path*] := (is_val[char]=="s" && InStr(m_str,"\")
-							? dq this.string_decode(SubStr(m_str,2,-1)) dq : m_str )
+							? """" this.string_decode(SubStr(m_str,2,-1)) """" : m_str )
 							,this.i += StrLen(m_str)-1 , next := "e" )
 					: this.to_json_err(is_val[char])
 				: InStr("{[", char) ? (obj[path*] := {}, next := (char == "{" ? "k" : "a") )
@@ -380,52 +384,13 @@ Class JSON_AHK
 				: char == "[" ? (next := "a")
 				: this.to_json_err("start")
 			: ""
-			
-            ;~ If is_ws[(char := SubStr(json,++i,1))]                                                      ; Get first char
-                ;~ Continue                                                                                ; Skip if whitespace
-            
-            ;~ ;Error checking. Delete this.
-            ;~ ;Clipboard := "i: " i "`nnext: " next "`nchar: " char "`np_i: " p_i "`nmax: " max "`n`n" this.view_obj(obj)
-            ;~ ;MsgBox, % Clipboard
-            
-            ;~ (next == "v")                                                                                   ; Get value
-                ;~ ? (is_val[char]) ? (RegExMatch(json,rgx[is_val[char]],m_,i))                                ; If value expected, valideat and extract
-                    ;~ ? (obj[path*] := (is_val[char]=="s" && InStr(m_str,"\")                                 ; If string has escape, run string_decode 
-                        ;~ ? dq this.string_decode(SubStr(m_str,2,-1)) dq : m_str )                            ; Otherwise, add string
-                       ;~ ,i += StrLen(m_str)-1 , next := "e" )                                                ; Increment index and check for value ender
-                    ;~ : this.to_json_err(i,is_val[char])                                                      ; Otherwise, throw error for invalid number/string/bool/null
-                ;~ : (char == "{") ? (obj[path*] := {}, next := "k" )                                          ; If new object
-                ;~ : (char == "[") ? (obj[path*] := [], next := "a", ++p_i, path[p_i] := 1, type[p_i] := 1 )   ; If new array
-                ;~ : this.to_json_err(i,next)                                                                  ; Otherwise, error b/c not a valid value
-            ;~ : (next == "e")                                                                                 ; Check for a value ending (comma or closing brace)
-                ;~ ? (char == ",")                                                                             ; If comma, another value is expected
-                    ;~ ? (type[p_i]) ? (path[p_i]++, next := "v")                                              ; If in array, increment the index and get next value
-                    ;~ : (path.Pop(),type.Pop(), --p_i, next := "k")                                           ; If in object, remove key and get a new one
-                ;~ : ((char == "}") && !(type[p_i]) || (char == "]") && type[p_i])                             ; If end of object/array and type matches
-                    ;~ ? (path.Pop(), type.Pop(), --p_i, next := "e")                                          ; If valid, remove current path from stack
-                ;~ : this.to_json_err(i,next)                                                                  ; If not valid, throw error
-            ;~ : (next == "a")                                                                                 ; If beginning of array
-                ;~ ? (char == "]") ? (path.Pop(), type.Pop(), --p_i, next := "e")                              ; If empty array, remove from stack
-                ;~ : (char == "{") ? next := "k"                                                               ; If new object, get key
-                ;~ : (char == "[") ? (obj[path*] := [], next := "a", path[++p_i] := 1, type[p_i] := 1 )        ; If new array
-                ;~ : (is_val[char]) ? (i--,next := "v")                                                        ; If value,decrement index and set next to v
-                ;~ : this.to_json_err(i,next)                                                                  ; Otherwise,error b/c not a valid value
-            ;~ : (next == "k")                                                                                 ; Get an object key
-                ;~ ? (char == "}") ? next := "e"                                                               ; If empty object, get next ender
-                ;~ : RegExMatch(json,rgx.k,m_,i)                                                               ; If valid string, get key
-                    ;~ ? (++p_i, path[p_i] := m_str, type[p_i] := 0, i += StrLen(m_)-1, next := "v" )          ; Update path and get value
-                ;~ : this.to_json_err(i,next)                                                                  ; Throw error for invalid key
-            ;~ : (next == "s")                                                                                 ; Start checks for initial object or array
-                ;~ ? (char == "{") ? (obj := {}, next := "k")                                                  ; If JSON is object, get key
-                ;~ : (char == "[") ? (obj:= [], next := "a", path[++p_i] := 1, type[p_i] := 1 )                ; If JSON is array, set path and get value
-                ;~ : this.to_json_err(i, next)                                                                 ; Throw error for invalid start of JSON file
-            ;~ : ""
-        }
         
         this.json := ""     ; Post conversion clean up
         
-        Clipboard := "this.i: " this.i "`nnext: " next "`nchar: " char "`np_i: " p_i "`nmax: " max "`n`n" this.view_obj(obj)
-        MsgBox, % Clipboard
+        MsgBox, % this.view_obj(obj)
+        
+        ;~ Clipboard := "this.i: " this.i "`nnext: " next "`nchar: " char "`np_i: " p_i "`nmax: " max "`n`n" this.view_obj(obj)
+        ;~ MsgBox, % Clipboard
         
         Return obj
     }
@@ -613,21 +578,17 @@ Class JSON_AHK
     
     ; ===== Test Methods =====
     ; View the contents of an object
-    view_obj(obj, i:=0) {
-        str := indent := ""
-        i_unit := "`t"
-        
-        Loop, % i
-            indent .= i_unit
+    view_obj(obj, indent:="") {
+        str := ""
         
         For key, value in obj
             str .= IsObject(value)
-                ? indent key ": " this.view_obj(value, i+1) ",`n"
+                ? indent key ": `n" indent A_Tab Trim(this.view_obj(value, indent . A_Tab), ", `r`t`n") ",`n"
                 : indent key ": " value ",`n"
         
-        str := RTrim(str, ",`n")
+        str := Trim(Trim(str, "`n"), ",")
         
-        If (i==0)
+        If (indent = "")
             Clipboard := str
         Return str
     }
