@@ -1,8 +1,14 @@
+## PLEASE NOTE THAT THIS IS A WIP!! It is not completed as of yet.
+## When it is in a fully functional state, I'll update this.
+(Felt it necessary to mention this after someone randomly starred this page haha.)
+
 # JSON_AHK
+
 This is a library written for AutoHotkey that provides JSON support.
 JSON_AHK is able to convert JSON text into a valid AHK object as well as converting any AHK object/array into JSON text.
 
 This library comes with multiple methods as well as quite a few properties that can be set to customize the JSON text output.
+
 
 ## Methods  
 ```AutoHotkey
