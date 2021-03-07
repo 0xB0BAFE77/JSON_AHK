@@ -1,5 +1,5 @@
 ## PLEASE NOTE THAT THIS IS A WIP!! It is not completed as of yet.
-## When it is in a fully functional state, I'll update this.
+When it is in a fully functional state, I'll update this.
 (Felt it necessary to mention this after someone randomly starred this page haha.)
 
 # JSON_AHK
