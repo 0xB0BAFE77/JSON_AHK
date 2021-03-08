@@ -7,7 +7,6 @@ SetBatchLines, -1
 ListLines, Off
 
 
-
 Class JSON_AHK
 {
     ; AHK limitations disclaimer
