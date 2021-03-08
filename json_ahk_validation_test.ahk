@@ -6,9 +6,6 @@
 SetBatchLines, -1
 ListLines, Off
 
-;FIX THE DAMN VIEW_OBJ METHOD!!!
-;Also, your obj to json converter is broken.
-;Get to it, dumbass.
 test()
 
 ExitApp
@@ -47,14 +44,32 @@ test() {
     ; 
     
     obj     := {}
-    ;jtxt   := json_ahk.import()
-    jtxt    := json_ahk.test_file
+    jtxt   := json_ahk.import()
+    ;jtxt    := json_ahk.test_file
     i       := 1
+	
+	MsgBox, % json_ahk.stringify(jtxt)
+	ExitApp
     
-    qpx(1), obj := json_ahk.to_ahk(jtxt), t1 := qpx(0)
-    MsgBox, % "JSON successfully converted to object.`nTime to convert: " t1
-    MsgBox, % "json_ahk.to_json(obj):`n" json_ahk.to_json(obj)
-    ExitApp
+	
+    json_ahk.indent_unit      := "`t"
+    json_ahk.esc_slash        := False
+	json_ahk.array_one_line	  := True
+	
+    json_ahk.ob_new_line      := True
+    json_ahk.ob_val_inline    := False
+    json_ahk.arr_val_same     := False
+    json_ahk.obj_val_same     := False
+    json_ahk.cb_new_line      := True
+    json_ahk.cb_val_inline    := False
+    json_ahk.no_empty_brace_ws:= True
+    json_ahk.add_quotes       := False
+    json_ahk.no_braces        := False
+	
+	
+	
+	json_ahk.preview()
+	ExitApp
     
     qpx(1)
     Loop, % i
@@ -86,38 +101,48 @@ QPX(N=0) {  ; Wrapper for QueryPerformanceCounter()by SKAN   | CD: 06/Dec/2009
 
 Class JSON_AHK
 {
-    ; Things to add/change:
-    ; Option to preview the current export settings
-    ;   Something like json_ahk.preview()
-    ;   Add the JSON test file to the script to use as the preview model
-    ; Option to put all array values on one line
-    ; Add limitations disclaimer
-    ;   - AHK is not a case-sensitive language. Object keys of different case are the same keys.
-    ;   - 
+    ; AHK limitations disclaimer
+    ;   - AHK is not a case-sensitive language. Object keys that only differ by case are considered the same key to AHK.
+	;     I'm adding in a check to see if the key exists first. If so, it will warn the user before overwriting.
+	;     This will be a toggleable property option. something like json_ahk.dupe_key_check
+    ;   - Arrays are actually objects in AHK and not their own defined type.
+	;     This library "assumes" arrays by their indexes.
+	;	  If the first index is 1 and all subsequent indexes are 1 higher than the previous, it's considered an array
+	;     Because of this, blank arrays [] will always export as blank objects {}.
     
-    ; Things I'm currently working on:
-    ;   - Stringfy doesn't work
-    ;   - Need to add a .preview() method
+    ; Currently working on:
+    ;   - Stringfy doesn't work. Rewrite needed.
+	;   - Error checking still needs to be implemented
+	;     This should be able to the user EXACTLY where the error is and why it's an error.
     ;   - Add option to put array elements on one line when exporting JSON text
     ;   - Write .validate() (use to_obj as a template w/o actually writing to the object)
     ;   - Write .to_json_default() - Method to reset the JSON export display settings
     ;   - Speaking of export, should I write an export() function that works like import() but saves?
+    ;   - .strip_quotes has not be implemented yet
+	;     This strips off string quotation marks when creating the AHK object
     
-    
-    
+	; Creating a change log as of 20210307 to track changes
+	; - Fixed issues with .to_ahk() and .to_json()
+	;   Library works on a basic level now and can be used. :)
+	; - Added: .preview() method
+	; - Worked on comment info
+	; - Added: esc_slash property
+	; - Fixed: Empty brace checking
+	
+	
     ;==================================================================================================================
     ; Title:        JSON_AHK
     ; Desc:         Library that converts JSON to AHK objects and AHK to JSON
     ; Author:       0xB0BAFE77
     ; Created:      20200301
-    ; Last Update:  20210301
+    ; Last Update:  20210307
     ; Methods:
     ;   .to_JSON(ahk_object)    ; Converts an AHK object and returns JSON text
     ;   .to_AHK(json_txt)       ; Converts JSON text and returns an AHK object
     ;   .stringify(json_txt)    ; Organizes code into one single line
     ;   .validate(json_txt)     ; Validates a json file and retruns true or false
     ;   .import()               ; Returns JSON text from a file
-    ;   .preview()              ; [NOT IMPLEMENTED YET] Preview the current JSON export settings
+    ;   .preview()              ; Preview the current JSON export settings
     ;
     ; Properties:
     ;   .indent_unit            ; Set to the desired indent character(s). Default=1 tab
@@ -180,12 +205,15 @@ Class JSON_AHK
     Static esc_slash        := False    ; False | Optionally escape forward slashes when exporting JSON
     Static ob_new_line      := True     ; True  | Open brace is put on a new line
     Static ob_val_inline    := False    ; False | Open braces on a new line are indented to match value
-    Static arr_val_same     := False    ; False | First value of an array appears on the same line as the brace
-    Static obj_val_same     := False    ; False | First value of an object appears on the same line as the brace
     Static cb_new_line      := True     ; True  | Close brace is put on a new line
     Static cb_val_inline    := False    ; False | Open braces on a new line are indented to match value
-    Static no_brace_ws      := True     ; True  | Remove whitespace from empty braces
-    Static add_quotes       := False    ; False | Adds quotation marks to all strings if they lack one
+	
+    Static arr_val_same     := False    ; False | First value of an array appears on the same line as the brace
+    Static obj_val_same     := False    ; False | First value of an object appears on the same line as the brace
+	
+    Static no_empty_brace_ws:= True     ; True  | Remove whitespace from empty braces
+    Static array_one_line	:= False	; False | List array elements on one line instead of multiple
+	Static add_quotes       := False    ; False | Adds quotation marks to all strings if they lack one
     Static no_braces        := False    ; False | Removes object and array braces. This invalidates its JSON
     ;                                   ;       | format and should only be used for human consumption/readability
     ; User settings for converting JSON
@@ -194,7 +222,7 @@ Class JSON_AHK
     ;==================================================================================================================
     
     ; Test file (very thorough)
-    Static test_file := "[`n`t""JSON Test Pattern pass1"",`n`t{""object with 2 members"":[""obj member 1/2 element 1/2"",""obj member 1/2 element 2/2""],[""obj member 2/2 element 1/2"",""obj member 2/2 element 2/2""]},`n`t{},`n`t[],`n`t-42,`n`ttrue,`n`tfalse,`n`tnull,`n`t{`n`t`t""integer"": 1234567890,`n`t`t""real"": -9876.543210,`n`t`t""e"": 0.123456789e-12,`n`t`t""E"": 1.234567890E+34,`n`t`t"""":  23456789012E66,`n`t`t""zero"": 0,`n`t`t""one"": 1,`n`t`t""space"": "" "",`n`t`t""quote"": ""\"""",`n`t`t""backslash"": ""\\"",`n`t`t""controls"": ""\b\f\n\r\t"",`n`t`t""slash"": ""/ & \/"",`n`t`t""alpha"": ""abcdefghijklmnopqrstuvwyz"",`n`t`t""ALPHA"": ""ABCDEFGHIJKLMNOPQRSTUVWYZ"",`n`t`t""digit"": ""0123456789"",`n`t`t""0123456789"": ""digit"",`n`t`t""special"": ""````1~!@#$``%^&*()_+-={':[,]}|;.</>?"",`n`t`t""hex"": ""\u0123\u4567\u89AB\uCDEF\uabcd\uef4A"",`n`t`t""true"": true,`n`t`t""false"": false,`n`t`t""null"": null,`n`t`t""array"":[  ],`n`t`t""object"":{  },`n`t`t""address"": ""50 St. James Street"",`n`t`t""url"": ""http://www.JSON.org/"",`n`t`t""comment"": ""// /* <!-- --"",`n`t`t""# -- --> */"": "" "",`n`t`t"" s p a c e d "" :[1,2 , 3`n`n,`n`n4 , 5`t`t,`t`t  6`t`t   ,7`t`t],""compact"":[1,2,3,4,5,6,7],`n`t`t""jsontext"": ""{\""object with 1 member\"":[\""array with 1 element\""]}"",`n`t`t""quotes"": ""&#34; \u0022 ``%22 0x22 034 &#x22;"",`n`t`t""\/\\\""\uCAFE\uBABE\uAB98\uFCDE\ubcda\uef4A\b\f\n\r\t``1~!@#$``%^&*()_+-=[]{}|;:',./<>?""`n: ""A key can be any string""`n`t},`n`t0.5 ,98.6`n,`n99.44`n,`n`n1066,`n1e1,`n0.1e1,`n1e-1,`n1e00,2e+00,2e-00`n,""rosebud""]"
+    Static test_file := "[`n`t""JSON Test Pattern pass1"",`n`t{""object with 1 members"":[""array with 1 element""]},`n`t{},`n`t[],`n`t-42,`n`ttrue,`n`tfalse,`n`tnull,`n`t{`n`t`t""integer"": 1234567890,`n`t`t""real"": -9876.543210,`n`t`t""e"": 0.123456789e-12,`n`t`t""E"": 1.234567890E+34,`n`t`t"""":  23456789012E66,`n`t`t""zero"": 0,`n`t`t""one"": 1,`n`t`t""space"": "" "",`n`t`t""quote"": ""\"""",`n`t`t""backslash"": ""\\"",`n`t`t""controls"": ""\b\f\n\r\t"",`n`t`t""slash"": ""/ & \/"",`n`t`t""alpha"": ""abcdefghijklmnopqrstuvwyz"",`n`t`t""ALPHA"": ""ABCDEFGHIJKLMNOPQRSTUVWYZ"",`n`t`t""digit"": ""0123456789"",`n`t`t""0123456789"": ""digit"",`n`t`t""special"": ""````1~!@#$``%^&*()_+-={':[,]}|;.</>?"",`n`t`t""hex"": ""\u0123\u4567\u89AB\uCDEF\uabcd\uef4A"",`n`t`t""true"": true,`n`t`t""false"": false,`n`t`t""null"": null,`n`t`t""array"":[  ],`n`t`t""object"":{  },`n`t`t""address"": ""50 St. James Street"",`n`t`t""url"": ""http://www.JSON.org/"",`n`t`t""comment"": ""// /* <!-- --"",`n`t`t""# -- --> */"": "" "",`n`t`t"" s p a c e d "" :[1,2 , 3`n`n,`n`n4 , 5`t`t,`t`t  6`t`t   ,7`t`t],""compact"":[1,2,3,4,5,6,7],`n`t`t""jsontext"": ""{\""object with 1 member\"":[\""array with 1 element\""]}"",`n`t`t""quotes"": ""&#34; \u0022 ``%22 0x22 034 &#x22;"",`n`t`t""\/\\\""\uCAFE\uBABE\uAB98\uFCDE\ubcda\uef4A\b\f\n\r\t``1~!@#$``%^&*()_+-=[]{}|;:',./<>?""`n: ""A key can be any string""`n`t},`n`t0.5 ,98.6`n,`n99.44`n,`n`n1066,`n1e1,`n0.1e1,`n1e-1,`n1e00,2e+00,2e-00`n,""rosebud""]"
     
     ; Import JSON file
     import() {
@@ -224,71 +252,83 @@ Class JSON_AHK
     
     ; Convert AHK object to JSON string
     to_json(obj, ind:="") {
+		this.esc_slash_s := (this.esc_slash ? "/" : "")
+		this.esc_slash_r := (this.esc_slash ? "\/" : "")
+		
         Return IsObject(obj)
             ? LTrim(this.to_json_extract(obj, this.is_array(obj)), "`n")
         : this.basic_error("You did not supply a valid object or array")
     }
     
-    preview() {
-        
-        Return
-    }
-    
+	preview() {
+		MsgBox, % (Clipboard := this.to_json(this.to_ahk(this.test_file)))
+		Return
+	}
+	
     ; Recursively extracts values from an object
     ; type = Incoming object type: 0 for object, 1 for array
     ; Indent is set by the json_ahk.indent_unit property
     ; It should be left blank as recursion sets indent depth
     to_json_extract(obj, type, ind:="") {
         Local
-        Static ws       := "[ |\t|\n|\r]*"
-        Static ,rgx.arr := ws "\[" ws "\]" ws
-        Static ,rgx.obj := ws "\{" ws "\}" ws
         
-        ind_big := ind . this.indent_unit                                   ; Set big indent
-        ,str    := (this.ob_new_line                                        ; Build beginning of arr/obj
+        ind_big := ind . this.indent_unit                                   		; Set big indent
+        ,str    := (this.ob_new_line                                        		; Build beginning of arr/obj
                     ? "`n" (this.ob_val_inline ? ind_big : ind)
-                    : "")                                                   ; Create brace prefix
-                . (this.no_braces ? "" : type ? "[" : "{")                  ; Add correct brace
-        
+                    : "")                                                   		; Create brace prefix
+                . (this.no_braces ? "" : type ? "[" : "{")                  		; Add correct brace
+		
         For key, value in obj
-            str .= (this.is_array(value)                                    ; Check if value is array
-                    ? (type ? ""                                            ; If this obj is array, do nothing
-                        : "`n" ind_big key ": ")                            ; Else, construct value prefix
-                        . this.to_json_extract(value, 1, ind_big)           ; And get value
-                : IsObject(value)                                           ; If value not array, check if object
-                    ? (type ? "" : key ": ")                                ; Construct prefix
-                        . this.to_json_extract(value, 0, ind_big)           ; And get value
-                : "`n" ind_big (type ? "" : key ": ")                       ; If not array or object, is value
-                    . (InStr(value, """")                                   ; Check if string
-                        ? ("""" StrReplace(StrReplace(StrReplace(""         ; If in string, escape: backslashes, tabs,
-                        . StrReplace(StrReplace(StrReplace(StrReplace(""    ; backspaces, formfeeds, linefeeds
-                        . StrReplace(SubStr(value, 2, -1),"\","\\")         ; carriage returns, and double quotes
-                        ,"`b","\b"),"`f","\f"),"`n","\n"),"`r","\r")        ; \\u is also fixed
-                        ,"`t","\t"),"""","\"""),"\\u","\u") """")			; Yes, it's ugly af but it's also faster
-                        : value ) )                                         ; If not a string, add value
-                    . ","                                                   ; Always end with a comma
+            str .= (this.is_array(value)                                    		; Check if value is array
+                    ? (type ? ""                                            		; If current obj is array, do nothing
+                        : "`n" ind_big key ": ")                            		; Else, construct obj prefix
+                        . this.to_json_extract(value, 1, ind_big)           		; Then get extracted values
+                : IsObject(value)                                           		; If value not array, check if object
+                    ? (type ? "" : key ": ")                                		; Construct obj prefix
+                        . this.to_json_extract(value, 0, ind_big)           		; Extract values
+                : (type && this.array_one_line ? "" : "`n" ind_big)					; Should array elements be on 1 line
+					. (type ? "" : key ": ")                       					; If object, add key
+                    . (InStr(value, """")                                   		; If string, encode: backslashes, backspaces
+                        ? ("""" StrReplace(StrReplace(StrReplace(StrReplace(""		; formfeeds, linefeeds, carriage returns,
+						. StrReplace(StrReplace(StrReplace(StrReplace(StrReplace("" ; horizontal tabs, and fix \\u
+						. SubStr(value, 2, -1),"\","\\"),"`b","\b"),"`f","\f")		; Yes, this is ugly af 
+						,"`n","\n"),"`r","\r"),"`t","\t"),"""","\"""),"\\u","\u")	; It's also faster thi
+						,this.esc_slash_s, this.esc_slash_r) """")					; Also, optionally escapes slashes
+                        : value ) )                                         		; If not string, bypass decode and add value
+                    . ","                                                   		; Always end with a comma
         
-        str := RTrim(str, ",")                                  ; Strip off last comma
-            . (this.cb_new_line                                 ; cb on new line?
-                ? "`n" (this.cb_val_inline ? ind_big : ind)     ; cb inline with values?
-                : "")                                           ; Create closing prefix
-            . (this.no_braces ? "" : type ? "]" : "}")          ; Select brace
-        
-        ; Empty object formatter
-        (this.no_brace_ws && str ~= this.rgx[(type?"e_arr":"e_obj")])  ; RegEx for empty object/array
-            ? str := (this.ob_new_line ? "`n" ind : "")  ; If true, create prefix
-                ;; In AHK v1, there's no way to distinguish between an empty array and empty object
-                ;; When constructing JSON output, empty arrays will always show as empty objects
-                . (this.no_braces ? "" : "{}" )          ; Add empty brace.
-            : ""
-        
+        str := RTrim(str, ",")   							; Strip off last comma
+		(type && this.array_one_line)						; Array elements on 1 line check
+			? str .= "]"									; If yes, cap off with bracket
+		: str .= (this.cb_new_line							; Otherwise check if closing brace is on new line
+			? "`n" (this.cb_val_inline ? ind_big : ind)		; Check if brace should be indented to value
+			: "" )											; Otherwise do nothing
+            . (this.no_braces ? "" : type ? "]" : "}")		; Add appropriate closing brace
+		
+        ; Empty object checker
+		;; In AHK v1, all arrays are objects so there is no way to distinguish between an empty array and empty object
+		;; When constructing JSON output, empty arrays will always show as empty objects
+		If this.no_empty_brace_ws
+			If RegExMatch(str, "^[ |\t|\n|\r]*(\{[ |\t|\n|\r]*\}|\[[ |\t|\n|\r]*\])[ |\t|\n|\r]*$")
+				str := (this.ob_new_line ? "`n" ind : "") 				; If true, create prefix
+					. (this.no_braces ? "" : "{}" )   					; Add empty brace.
+		
         Return str
     }
     
     ; Converts a json text file into a single string
     stringify(json) {
         Local
-        str			:= ""
+		
+		qpx(1)
+		str := ""
+		For k, v in this.to_ahk(json)
+			str .= v
+		t1 := qpx(0)
+		
+		MsgBox, % "time to stringify: " t1 " sec"
+		ExitApp
+		
         Return str
     }
     
@@ -387,11 +427,6 @@ Class JSON_AHK
         
         this.json := ""     ; Post conversion clean up
         
-        MsgBox, % this.view_obj(obj)
-        
-        ;~ Clipboard := "this.i: " this.i "`nnext: " next "`nchar: " char "`np_i: " p_i "`nmax: " max "`n`n" this.view_obj(obj)
-        ;~ MsgBox, % Clipboard
-        
         Return obj
     }
     
@@ -445,11 +480,27 @@ Class JSON_AHK
         Return ("""" txt """")
     }
     
+	to_json_default() {
+	    json_ahk.indent_unit      := "`t"
+		json_ahk.esc_slash        := False
+		json_ahk.ob_new_line      := True
+		json_ahk.ob_val_inline    := False
+		json_ahk.arr_val_same     := False
+		json_ahk.obj_val_same     := False
+		json_ahk.cb_new_line      := True
+		json_ahk.cb_val_inline    := False
+		json_ahk.no_empty_brace_ws:= True
+		json_ahk.add_quotes       := False
+		json_ahk.no_braces        := False
+		json_ahk.strip_quotes     := False
+		Return
+	}
+	
     ; Check if object is an array
     is_array(obj) {
-        If !IsObject(obj)
-            Return False
-        For k, v in obj
+        If !obj.HasKey(1)
+			Return False
+		For k, v in obj
             If (k != A_Index)
                 Return False
         Return True
