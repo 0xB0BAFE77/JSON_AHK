@@ -14,13 +14,13 @@ You can do all of that with this library.
 The properties section below contains a list of all the properties and examples of what each does.
 
 It should be noted that this library does suffer from some limitations imposed by the AHK language.
-Known issues:  
-    - AHK is a case-insensitive language. If any key-pair values differ only by their letter case, AHK considers them the same key.  
-      Example: These keys are identical {"ALPHA":"WORDS", "alpha":"words"}  
-      I'm trying to figure a way to overcome this limitation. Until then, I'll add a warning on duplicate keys.  
-	- All arrays in AHK are objects. Because they are no differentiated in AHK, this library has to make assumptions based on index.  
-	  Because of that, empty JSON arrays `[]` will always export as empty objects `{}`.  
-      I have not come up with a way around this as it's core to the langauge.
+Known issues:
+* AHK is a case-insensitive language. If any key-pair values differ only by their letter case, AHK considers them the same key.  
+  Example: These keys are identical {"ALPHA":"WORDS", "alpha":"words"}  
+  I'm trying to figure a way to overcome this limitation. Until then, I'll add a warning on duplicate keys.  
+* All arrays in AHK are objects. Because they are no differentiated in AHK, this library has to make assumptions based on index.  
+  Because of that, empty JSON arrays `[]` will always export as empty objects `{}`.  
+  I have not come up with a way around this as it's core to the langauge.
 
 
 ## Methods  
