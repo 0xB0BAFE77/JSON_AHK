@@ -1,11 +1,5 @@
-#SingleInstance Force
-#Warn
 #NoEnv
 #MaxMem 1024
-#KeyHistory 0
-SetBatchLines, -1
-ListLines, Off
-
 
 Class JSON_AHK
 {
@@ -15,7 +9,7 @@ Class JSON_AHK
     ;     This will be a toggleable property option. something like json_ahk.dupe_key_check
     ;   - Arrays are actually objects in AHK and not their own defined type.
     ;     This library "assumes" arrays by their indexes.
-    ;      If the first index is 1 and all subsequent indexes are 1 higher than the previous, it's considered an array
+    ;	  If the first index is 1 and all subsequent indexes are 1 higher than the previous, it's considered an array
     ;     Because of this, blank arrays [] will always export as blank objects {}.
     
     ; Currently working on:
@@ -28,85 +22,95 @@ Class JSON_AHK
     ;   - Speaking of export, should I write an export() function that works like import() but saves?
     ;   - .strip_quotes has not be implemented yet
     ;     This strips off string quotation marks when creating the AHK object
+    ;   - Add error detection for duplicate keys (this includes keys that differe only in case)
     
     ; Creating a change log as of 20210307 to track changes
     ; - Fixed issues with .to_ahk() and .to_json()
     ;   Library works on a basic level now and can be used. :)
     ; - Added: .preview() method
-    ; - Updated general comment info
+    ; - Worked on comment info
     ; - Added: esc_slash property
     ; - Fixed: Empty brace checking
+    ; - Massive update to README file
     
     
-    ;==================================================================================================================
-    ; Title:        JSON_AHK
-    ; Desc:         Library that converts JSON to AHK objects and AHK to JSON
-    ; Author:       0xB0BAFE77
-    ; Created:      20200301
-    ; Last Update:  20210307
-    ; Methods:
-    ;   .to_JSON(ahk_object)    ; Converts an AHK object and returns JSON text
-    ;   .to_AHK(json_txt)       ; Converts JSON text and returns an AHK object
-    ;   .stringify(json_txt)    ; Organizes code into one single line
-    ;   .validate(json_txt)     ; Validates a json file and retruns true or false
-    ;   .import()               ; Returns JSON text from a file
-    ;   .preview()              ; Preview the current JSON export settings
-    ;
-    ; Properties:
-    ;   .indent_unit            ; Set to the desired indent character(s). Default=1 tab
-    ;   .array_one_line         ; [NOT IMPLEMENTED YET] Puts all array values on one line
-    ;   .no_brace_ws            ; Remove whitespace from empty braces. Default = True
-    ;   .no_brace_ws_all        ; Remove whitespace from objects containing empty objects. Default = False
-    ;   .no_indent              ; Enable indenting of exported JSON files. Default=False
-    ;   .no_braces              ; Messes up your teeth. Kidding. It removes all braces. Default=False
-    ;                           ; This setting is strictly for human consumption and removes all JSON formatting
-    ;===========================;======================================================================================
-    ;   .ob_new_line            ; Open brace is put on a new line.
-    ;                           ; True:     "key":
-    ;                           ; [DEF]     [
-    ;                           ;               "value",
-    ;                           ; False:    "key": [
-    ;                           ;               "value",
-    ;===========================;======================================================================================
-    ;    .ob_val_inline         ; Open brace indented to match value indent.
-    ;                           ; This setting is ignored when ob_new_line is set to false.
-    ;                           ; True:     "key":
-    ;                           ;               [
-    ;                           ;               "value1",
-    ;                           ; False:    "key":
-    ;                           ; [DEF]     [
-    ;                           ;               "value1",
-    ;===========================;======================================================================================
-    ;    .ob_brace_val          ; Brace and first value share same line and usually used with .ob_val_inline
-    ;                           ; True:     "key":
-    ;                           ;               ["value1",
-    ;                           ;               "value2",
-    ;                           ; False:    "key":
-    ;                           ; [DEF]         [
-    ;                           ;               "value1",
-    ;                           ;               "value2",
-    ;===========================;======================================================================================
-    ;    .cb_new_line           ; Close brace is put on a new line.
-    ;                           ; True:         "value2",
-    ;                           ; [DEF]         "value3"
-    ;                           ;           }
-    ;                           ; False:        "value2",
-    ;                           ;               "value3"}
-    ;===========================;======================================================================================
-    ;    .cb_val_inline         ; Close brace indented to match value indent.
-    ;                           ; True:         "value2",
-    ;                           ;               "value3"
-    ;                           ;               }
-    ;                           ; False:        "value2",
-    ;                           ; [DEF]         "value3"
-    ;                           ;           }
-    ;===========================;======================================================================================
-    ;    .array_one_line        ; Array values are put on one line.
-    ;                           ; True:     "key": ["value1", "value2"]
-    ;                           ; False     "key":
-    ;                           ; [DEF]     [
-    ;                           ;               "value1",
-    ;                           ;
+    ;===========================================================================.
+    ; Title:        JSON_AHK                                                    |
+    ; Desc:         Library that converts JSON to AHK objects and AHK to JSON   |
+    ; Author:       0xB0BAFE77                                                  |
+    ; Created:      20200301                                                    |
+    ; Last Update:  20210307                                                    |
+    ;==========================================================================='
+    
+    ;=============================================================================================================================================.
+    ; Methods           | Return Value                 | Function                                                                                 |
+    ;-------------------|------------------------------|------------------------------------------------------------------------------------------|
+    ; .to_json(object)  | JSON string or 0 if failed.  | Convert an AHK object to JSON text.                                                      |
+    ; .to_ahk(json)     | AHK object or 0 if failed.   | Convert JSON text to an AHK object.                                                      |
+    ; .stringify(json)  | JSON string or 0 if failed.  | Removes all non-string whitespace.                                                       |
+    ; .validate(json)   | true if valid else false.    | Checks if object or text is valid JSON. Offers basic error correction.                   |
+    ; .import()         | JSON string or 0 if failed.  | Opens a window to select a JSON file.                                                    |
+    ; .preview(p1)      | Always returns blank.        | Preview current JSON export settings. Passing true to p1 will save preview to clipboard. |
+    ;============================================================================================================================================='
+    
+    ;=============================================================================================================================================.
+    ; Properties:               | Default | Function                                                                                              |
+    ;---------------------------+---------+-------------------------------------------------------------------------------------------------------|
+    ; .indent_unit              | `t      | Assign indentation. Can be any character and any amount. Ex 2 spaces "  " or 2 tabs "`t`t".           |
+    ; .no_brace_ws              | true    | Removes whitespace from empty objects.                                                                |
+    ; .no_braces                | true    | Removes all braces and brackets from the JSON text export.                                            |
+    ; .ob_new_line              | true    | Put opening braces/brackets on a new line.                                                            |
+    ; .ob_val_inline            | false   | Indent opening brace to be inline with the values. This setting is ignored when .ob_new_line is true. |
+    ; .ob_brace_val             | false   | First element is put on the same line as the opening brace. Usually used with .ob_val_inline          |
+    ; .cb_new_line              | true    | Put closing braces/brackets on a new line.                                                            |
+    ; .cb_val_inline            | false   | Indent closing brace to be inline with the values. This setting is ignored when .ob_new_line is true. |
+    ; .array_one_line           | true    | Put all array elements on same line.                                                                  |
+    ;---------------------------+---------'-------------------------------------------------------------------------------------------------------'
+    ; Examples:                 |
+    ;---------------------------+-----------------------------------------------------------------------------------------------------------------.
+    ; .no_brace_ws              | True: [DEF]   {},                                                                                               |
+    ;                           | False:        {        },                                                                                       |
+    ;---------------------------+-----------------------------------------------------------------------------------------------------------------|
+    ; .ob_new_line              | True: [DEF]   "key":                                                                                            |
+    ;                           |               [                                                                                                 |
+    ;                           |                   "value",                                                                                      |
+    ;                           | False:        "key": [                                                                                          |
+    ;                           |                   "value",                                                                                      |
+    ;---------------------------+-----------------------------------------------------------------------------------------------------------------|
+    ; .ob_val_inline            | True:         "key":                                                                                            |
+    ;                           |                   [                                                                                             |
+    ;                           |                   "value1",                                                                                     |
+    ;                           | False: [DEF]  "key":                                                                                            |
+    ;                           |               [                                                                                                 |
+    ;                           |                   "value1",                                                                                     |
+    ;---------------------------+-----------------------------------------------------------------------------------------------------------------|
+    ; .ob_brace_val             | True:         "key":                                                                                            |
+    ;                           |                   ["value1",                                                                                    |
+    ;                           |                   "value2",                                                                                     |
+    ;                           | False: [DEF]  "key":                                                                                            |
+    ;                           |                   [                                                                                             |
+    ;                           |                   "value1",                                                                                     |
+    ;                           |                   "value2",                                                                                     |
+    ;---------------------------+-----------------------------------------------------------------------------------------------------------------|
+    ; .cb_new_line              | True: [DEF]       "value2",                                                                                     |
+    ;                           |                   "value3"                                                                                      |
+    ;                           |               }                                                                                                 |
+    ;                           | False:            "value2",                                                                                     |
+    ;                           |                   "value3"}                                                                                     |
+    ;---------------------------+-----------------------------------------------------------------------------------------------------------------|
+    ; .cb_val_inline            | True:             "value2",                                                                                     |
+    ;                           |                   "value3"                                                                                      |
+    ;                           |                   }                                                                                             |
+    ;                           | False: [DEF]      "value2",                                                                                     |
+    ;                           |                   "value3"                                                                                      |
+    ;                           |               }                                                                                                 |
+    ;---------------------------+-----------------------------------------------------------------------------------------------------------------|
+    ;.array_one_line            | True:         "key": ["value1", "value2"]                                                                       |
+    ;                           | False: [DEF]  "key": [                                                                                          |
+    ;                           |                   "value1",                                                                                     |
+    ;                           |                   "value2"                                                                                      |
+    ;___________________________|_________________________________________________________________________________________________________________|
+    
     ;==================================================================================================================
     ; JSON export settings              ;Default|
     Static indent_unit      := "`t"     ; `t    | Set to desired indent (EX: "  " for 2 spaces)
@@ -115,13 +119,13 @@ Class JSON_AHK
     Static ob_val_inline    := False    ; False | Open braces on a new line are indented to match value
     Static cb_new_line      := True     ; True  | Close brace is put on a new line
     Static cb_val_inline    := False    ; False | Open braces on a new line are indented to match value
-	
+    
     Static arr_val_same     := False    ; False | First value of an array appears on the same line as the brace
     Static obj_val_same     := False    ; False | First value of an object appears on the same line as the brace
-	
+    
     Static no_empty_brace_ws:= True     ; True  | Remove whitespace from empty braces
     Static array_one_line	:= False	; False | List array elements on one line instead of multiple
-	Static add_quotes       := False    ; False | Adds quotation marks to all strings if they lack one
+    Static add_quotes       := False    ; False | Adds quotation marks to all strings if they lack one
     Static no_braces        := False    ; False | Removes object and array braces. This invalidates its JSON
     ;                                   ;       | format and should only be used for human consumption/readability
     ; User settings for converting JSON
@@ -160,19 +164,21 @@ Class JSON_AHK
     
     ; Convert AHK object to JSON string
     to_json(obj, ind:="") {
-		this.esc_slash_s := (this.esc_slash ? "/" : "")
-		this.esc_slash_r := (this.esc_slash ? "\/" : "")
-		
+        this.esc_slash_s := (this.esc_slash ? "/" : "")
+        this.esc_slash_r := (this.esc_slash ? "\/" : "")
+        
         Return IsObject(obj)
             ? LTrim(this.to_json_extract(obj, this.is_array(obj)), "`n")
         : this.basic_error("You did not supply a valid object or array")
     }
     
-	preview() {
-		MsgBox, % (Clipboard := this.to_json(this.to_ahk(this.test_file)))
-		Return
-	}
-	
+    preview(save:=0) {
+        txt := this.to_json(this.to_ahk(this.test_file))
+        save ? Clipboard := txt : ""
+        MsgBox, % txt
+        Return ""
+    }
+    
     ; Recursively extracts values from an object
     ; type = Incoming object type: 0 for object, 1 for array
     ; Indent is set by the json_ahk.indent_unit property
@@ -185,7 +191,7 @@ Class JSON_AHK
                     ? "`n" (this.ob_val_inline ? ind_big : ind)
                     : "")                                                   		; Create brace prefix
                 . (this.no_braces ? "" : type ? "[" : "{")                  		; Add correct brace
-		
+        
         For key, value in obj
             str .= (this.is_array(value)                                    		; Check if value is array
                     ? (type ? ""                                            		; If current obj is array, do nothing
@@ -195,48 +201,48 @@ Class JSON_AHK
                     ? (type ? "" : key ": ")                                		; Construct obj prefix
                         . this.to_json_extract(value, 0, ind_big)           		; Extract values
                 : (type && this.array_one_line ? "" : "`n" ind_big)					; Should array elements be on 1 line
-					. (type ? "" : key ": ")                       					; If object, add key
+                    . (type ? "" : key ": ")                       					; If object, add key
                     . (InStr(value, """")                                   		; If string, encode: backslashes, backspaces
                         ? ("""" StrReplace(StrReplace(StrReplace(StrReplace(""		; formfeeds, linefeeds, carriage returns,
-						. StrReplace(StrReplace(StrReplace(StrReplace(StrReplace("" ; horizontal tabs, and fix \\u
-						. SubStr(value, 2, -1),"\","\\"),"`b","\b"),"`f","\f")		; Yes, this is ugly af 
-						,"`n","\n"),"`r","\r"),"`t","\t"),"""","\"""),"\\u","\u")	; It's also faster thi
-						,this.esc_slash_s, this.esc_slash_r) """")					; Also, optionally escapes slashes
+                        . StrReplace(StrReplace(StrReplace(StrReplace(StrReplace("" ; horizontal tabs, and fix \\u
+                        . SubStr(value, 2, -1),"\","\\"),"`b","\b"),"`f","\f")		; Yes, this is ugly af 
+                        ,"`n","\n"),"`r","\r"),"`t","\t"),"""","\"""),"\\u","\u")	; It's also faster thi
+                        ,this.esc_slash_s, this.esc_slash_r) """")					; Also, optionally escapes slashes
                         : value ) )                                         		; If not string, bypass decode and add value
                     . ","                                                   		; Always end with a comma
         
         str := RTrim(str, ",")   							; Strip off last comma
-		(type && this.array_one_line)						; Array elements on 1 line check
-			? str .= "]"									; If yes, cap off with bracket
-		: str .= (this.cb_new_line							; Otherwise check if closing brace is on new line
-			? "`n" (this.cb_val_inline ? ind_big : ind)		; Check if brace should be indented to value
-			: "" )											; Otherwise do nothing
+        (type && this.array_one_line)						; Array elements on 1 line check
+            ? str .= "]"									; If yes, cap off with bracket
+        : str .= (this.cb_new_line							; Otherwise check if closing brace is on new line
+            ? "`n" (this.cb_val_inline ? ind_big : ind)		; Check if brace should be indented to value
+            : "" )											; Otherwise do nothing
             . (this.no_braces ? "" : type ? "]" : "}")		; Add appropriate closing brace
-		
+        
         ; Empty object checker
-		;; In AHK v1, all arrays are objects so there is no way to distinguish between an empty array and empty object
-		;; When constructing JSON output, empty arrays will always show as empty objects
-		If this.no_empty_brace_ws
-			If RegExMatch(str, "^[ |\t|\n|\r]*(\{[ |\t|\n|\r]*\}|\[[ |\t|\n|\r]*\])[ |\t|\n|\r]*$")
-				str := (this.ob_new_line ? "`n" ind : "") 				; If true, create prefix
-					. (this.no_braces ? "" : "{}" )   					; Add empty brace.
-		
+        ;; In AHK v1, all arrays are objects so there is no way to distinguish between an empty array and empty object
+        ;; When constructing JSON output, empty arrays will always show as empty objects
+        If this.no_empty_brace_ws
+            If RegExMatch(str, "^[ |\t|\n|\r]*(\{[ |\t|\n|\r]*\}|\[[ |\t|\n|\r]*\])[ |\t|\n|\r]*$")
+                str := (this.ob_new_line ? "`n" ind : "") 				; If true, create prefix
+                    . (this.no_braces ? "" : "{}" )   					; Add empty brace.
+        
         Return str
     }
     
     ; Converts a json text file into a single string
     stringify(json) {
         Local
-		
-		qpx(1)
-		str := ""
-		For k, v in this.to_ahk(json)
-			str .= v
-		t1 := qpx(0)
-		
-		MsgBox, % "time to stringify: " t1 " sec"
-		ExitApp
-		
+        
+        qpx(1)
+        str := ""
+        For k, v in this.to_ahk(json)
+            str .= v
+        t1 := qpx(0)
+        
+        MsgBox, % "time to stringify: " t1 " sec"
+        ExitApp
+        
         Return str
     }
     
@@ -300,38 +306,38 @@ Class JSON_AHK
         ; Can bit shifting be used as a replacement for type (tracks if current path is an array or object so a bunch of true/false)?
         
         While (this.i < max)
-			;MsgBox, % "this.i: " this.i "`nnext: " next "`nmax: " max "`nchar: " char "`nthis.view_obj(obj): " this.view_obj(obj)
-			is_ws[(char := SubStr(json,++this.i,1))]
-				? ""
-			: next == "v"
-				? is_val[char]
-					? RegExMatch(json,rgx[is_val[char]],m_,this.i)
-						? (obj[path*] := (is_val[char]=="s" && InStr(m_str,"\")
-							? """" this.string_decode(SubStr(m_str,2,-1)) """" : m_str )
-							,this.i += StrLen(m_str)-1 , next := "e" )
-					: this.to_json_err(is_val[char])
-				: InStr("{[", char) ? (obj[path*] := {}, next := (char == "{" ? "k" : "a") )
-				: this.to_json_err("value")
-			: next == "e"
-				? char == ","
-					? type[p_i] ? (path[p_i]++, next := "v")
-						: (path.Pop(), type.Pop(), --p_i, next := "k")
-				: ((char == "}" && !type[p_i]) || (char == "]" && type[p_i]))
-					? (path.Pop(), type.Pop(), --p_i, next := "e")
-				: this.to_json_err("end")
-			: next == "a"
-				? char == "]" ? next := "e"
-				: (path[++p_i] := 1, type[p_i] := 1, --this.i, next := "v")
-			: next == "k"
-				? char == "}" ? next := "e"
-				: RegExMatch(json,rgx.k,m_,this.i)
-					? (path[++p_i] := m_str, type[p_i] := 0, this.i += StrLen(m_)-1, next := "v" )
-				: this.to_json_err("key")
-			: next == "s"
-				? char == "{" ? (next := "k")
-				: char == "[" ? (next := "a")
-				: this.to_json_err("start")
-			: ""
+            ;MsgBox, % "this.i: " this.i "`nnext: " next "`nmax: " max "`nchar: " char "`nthis.view_obj(obj): " this.view_obj(obj)
+            is_ws[(char := SubStr(json,++this.i,1))]
+                ? ""
+            : next == "v"
+                ? is_val[char]
+                    ? RegExMatch(json,rgx[is_val[char]],m_,this.i)
+                        ? (obj[path*] := (is_val[char]=="s" && InStr(m_str,"\")
+                            ? """" this.string_decode(SubStr(m_str,2,-1)) """" : m_str )
+                            ,this.i += StrLen(m_str)-1 , next := "e" )
+                    : this.to_json_err(is_val[char])
+                : InStr("{[", char) ? (obj[path*] := {}, next := (char == "{" ? "k" : "a") )
+                : this.to_json_err("value")
+            : next == "e"
+                ? char == ","
+                    ? type[p_i] ? (path[p_i]++, next := "v")
+                        : (path.Pop(), type.Pop(), --p_i, next := "k")
+                : ((char == "}" && !type[p_i]) || (char == "]" && type[p_i]))
+                    ? (path.Pop(), type.Pop(), --p_i, next := "e")
+                : this.to_json_err("end")
+            : next == "a"
+                ? char == "]" ? next := "e"
+                : (path[++p_i] := 1, type[p_i] := 1, --this.i, next := "v")
+            : next == "k"
+                ? char == "}" ? next := "e"
+                : RegExMatch(json,rgx.k,m_,this.i)
+                    ? (path[++p_i] := m_str, type[p_i] := 0, this.i += StrLen(m_)-1, next := "v" )
+                : this.to_json_err("key")
+            : next == "s"
+                ? char == "{" ? (next := "k")
+                : char == "[" ? (next := "a")
+                : this.to_json_err("start")
+            : ""
         
         this.json := ""     ; Post conversion clean up
         
@@ -355,7 +361,8 @@ Class JSON_AHK
     }
     
     string_decode(txt){
-        Return StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(txt
+        Return StrReplace(StrReplace(StrReplace(StrReplace(""
+            . StrReplace(StrReplace(StrReplace(StrReplace(txt
                     ,"\b"	,"`b")	; Backspace
                     ,"\f"	,"`f")	; Formfeed
                     ,"\n"	,"`n")	; Linefeed
@@ -372,7 +379,7 @@ Class JSON_AHK
         
         MsgBox, % "before:`n`n" txt
         
-        txt	:= """" StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(""
+        txt	:= StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(""
             . StrReplace(StrReplace(StrReplace(StrReplace(SubStr(txt, 2, -1)
                 ,"\"	,"\\" )		; Backspace
                 ,"`b"	,"\b" )		; Backspace
@@ -388,27 +395,27 @@ Class JSON_AHK
         Return ("""" txt """")
     }
     
-	to_json_default() {
-	    json_ahk.indent_unit      := "`t"
-		json_ahk.esc_slash        := False
-		json_ahk.ob_new_line      := True
-		json_ahk.ob_val_inline    := False
-		json_ahk.arr_val_same     := False
-		json_ahk.obj_val_same     := False
-		json_ahk.cb_new_line      := True
-		json_ahk.cb_val_inline    := False
-		json_ahk.no_empty_brace_ws:= True
-		json_ahk.add_quotes       := False
-		json_ahk.no_braces        := False
-		json_ahk.strip_quotes     := False
-		Return
-	}
-	
+    to_json_default() {
+        json_ahk.indent_unit      := "`t"
+        json_ahk.esc_slash        := False
+        json_ahk.ob_new_line      := True
+        json_ahk.ob_val_inline    := False
+        json_ahk.arr_val_same     := False
+        json_ahk.obj_val_same     := False
+        json_ahk.cb_new_line      := True
+        json_ahk.cb_val_inline    := False
+        json_ahk.no_empty_brace_ws:= True
+        json_ahk.add_quotes       := False
+        json_ahk.no_braces        := False
+        json_ahk.strip_quotes     := False
+        Return
+    }
+    
     ; Check if object is an array
     is_array(obj) {
         If !obj.HasKey(1)
-			Return False
-		For k, v in obj
+            Return False
+        For k, v in obj
             If (k != A_Index)
                 Return False
         Return True
@@ -559,5 +566,15 @@ Class JSON_AHK
         
         MsgBox, % str
         Return
-    }	
+    }
+	
+	QPX(N=0) {  ; Wrapper for QueryPerformanceCounter()by SKAN   | CD: 06/Dec/2009
+		Local   ; www.autohotkey.com/forum/viewtopic.php?t=52083 | LM: 10/Dec/2009
+		Static F:="", A:="", Q:="", P:="", X:=""
+		If (N && !P)
+			Return DllCall("QueryPerformanceFrequency",Int64P,F) + (X:=A:=0)
+				+ DllCall("QueryPerformanceCounter",Int64P,P)
+		DllCall("QueryPerformanceCounter",Int64P,Q), A:=A+Q-P, P:=Q, X:=X+1
+		Return (N && X=N) ? (X:=X-1)<<64 : (N=0 && (R:=A/X/F)) ? (R + (A:=P:=X:=0)) : 1
+	}
 }
