@@ -11,33 +11,33 @@ Class JSON_AHK
 {
     ; AHK limitations disclaimer
     ;   - AHK is not a case-sensitive language. Object keys that only differ by case are considered the same key to AHK.
-	;     I'm adding in a check to see if the key exists first. If so, it will warn the user before overwriting.
-	;     This will be a toggleable property option. something like json_ahk.dupe_key_check
+    ;     I'm adding in a check to see if the key exists first. If so, it will warn the user before overwriting.
+    ;     This will be a toggleable property option. something like json_ahk.dupe_key_check
     ;   - Arrays are actually objects in AHK and not their own defined type.
-	;     This library "assumes" arrays by their indexes.
-	;	  If the first index is 1 and all subsequent indexes are 1 higher than the previous, it's considered an array
-	;     Because of this, blank arrays [] will always export as blank objects {}.
+    ;     This library "assumes" arrays by their indexes.
+    ;      If the first index is 1 and all subsequent indexes are 1 higher than the previous, it's considered an array
+    ;     Because of this, blank arrays [] will always export as blank objects {}.
     
     ; Currently working on:
     ;   - Stringfy doesn't work. Rewrite needed.
-	;   - Error checking still needs to be implemented
-	;     This should be able to the user EXACTLY where the error is and why it's an error.
+    ;   - Error checking still needs to be implemented
+    ;     This should be able to the user EXACTLY where the error is and why it's an error.
     ;   - Add option to put array elements on one line when exporting JSON text
     ;   - Write .validate() (use to_obj as a template w/o actually writing to the object)
     ;   - Write .to_json_default() - Method to reset the JSON export display settings
     ;   - Speaking of export, should I write an export() function that works like import() but saves?
     ;   - .strip_quotes has not be implemented yet
-	;     This strips off string quotation marks when creating the AHK object
+    ;     This strips off string quotation marks when creating the AHK object
     
-	; Creating a change log as of 20210307 to track changes
-	; - Fixed issues with .to_ahk() and .to_json()
-	;   Library works on a basic level now and can be used. :)
-	; - Added: .preview() method
-	; - Updated general comment info
-	; - Added: esc_slash property
-	; - Fixed: Empty brace checking
-	
-	
+    ; Creating a change log as of 20210307 to track changes
+    ; - Fixed issues with .to_ahk() and .to_json()
+    ;   Library works on a basic level now and can be used. :)
+    ; - Added: .preview() method
+    ; - Updated general comment info
+    ; - Added: esc_slash property
+    ; - Fixed: Empty brace checking
+    
+    
     ;==================================================================================================================
     ; Title:        JSON_AHK
     ; Desc:         Library that converts JSON to AHK objects and AHK to JSON
