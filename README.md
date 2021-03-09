@@ -25,28 +25,28 @@ Known issues:
 
 ## Methods  
 
-   | Methods           | Return Value                 | Function                                                                                 |
-   |:------------------|:-----------------------------|:-----------------------------------------------------------------------------------------|
-   | .to_json(object)  | JSON string or 0 if failed.  | Convert an AHK object to JSON text.                                                      |
-   | .to_ahk(json)     | AHK object or 0 if failed.   | Convert JSON text to an AHK object.                                                      |
-   | .stringify(json)  | JSON string or 0 if failed.  | Removes all non-string whitespace.                                                       |
-   | .validate(json)   | true if valid else false.    | Checks if object or text is valid JSON. Offers basic error correction.                   |
-   | .import()         | JSON string or 0 if failed.  | Opens a window to select a JSON file.                                                    |
-   | .preview(p1)      | Always returns blank.        | Preview current JSON export settings. Passing true to p1 will save preview to clipboard. |
+| Methods           | Return Value                 | Function                                                                                 |
+|:------------------|:-----------------------------|:-----------------------------------------------------------------------------------------|
+| .to_json(object)  | JSON string or 0 if failed.  | Convert an AHK object to JSON text.                                                      |
+| .to_ahk(json)     | AHK object or 0 if failed.   | Convert JSON text to an AHK object.                                                      |
+| .stringify(json)  | JSON string or 0 if failed.  | Removes all non-string whitespace.                                                       |
+| .validate(json)   | true if valid else false.    | Checks if object or text is valid JSON. Offers basic error correction.                   |
+| .import()         | JSON string or 0 if failed.  | Opens a window to select a JSON file.                                                    |
+| .preview(p1)      | Always returns blank.        | Preview current JSON export settings. Passing true to p1 will save preview to clipboard. |
 
-## Properties
+## Properties 
 
-    | Property        | Default | Function                                                                                              |
-    |:----------------|:--------|:------------------------------------------------------------------------------------------------------|
-    | .indent_unit    | `t      | Assign indentation. Can be any character and any amount. Ex 2 spaces "  " or 2 tabs "`t`t".           |
-    | .no_brace_ws    | true    | Removes whitespace from empty objects.                                                                |
-    | .no_braces      | true    | Removes all braces and brackets from the JSON text export.                                            |
-    | .ob_new_line    | true    | Put opening braces/brackets on a new line.                                                            |
-    | .ob_val_inline  | false   | Indent opening brace to be inline with the values. This setting is ignored when .ob_new_line is true. |
-    | .ob_brace_val   | false   | First element is put on the same line as the opening brace. Usually used with .ob_val_inline          |
-    | .cb_new_line    | true    | Put closing braces/brackets on a new line.                                                            |
-    | .cb_val_inline  | false   | Indent closing brace to be inline with the values. This setting is ignored when .ob_new_line is true. |
-    | .array_one_line | true    | Put all array elements on same line.                                                                  |
+| Property        | Default | Function                                                                                              |
+|:----------------|:--------|:------------------------------------------------------------------------------------------------------|
+| .indent_unit    | `t      | Assign indentation. Can be any amount of spaces, tabs, linefeeds or carriage returns.                 |
+| .no_brace_ws    | true    | Removes whitespace from empty objects.                                                                |
+| .no_braces      | true    | Removes all braces and brackets from the JSON text export.                                            |
+| .ob_new_line    | true    | Put opening braces/brackets on a new line.                                                            |
+| .ob_val_inline  | false   | Indent opening brace to be inline with the values. This setting is ignored when .ob_new_line is true. |
+| .ob_brace_val   | false   | First element is put on the same line as the opening brace. Usually used with .ob_val_inline          |
+| .cb_new_line    | true    | Put closing braces/brackets on a new line.                                                            |
+| .cb_val_inline  | false   | Indent closing brace to be inline with the values. This setting is ignored when .ob_new_line is true. |
+| .array_one_line | true    | Put all array elements on same line.                                                                  |
 
 ### Property Examples:
 
