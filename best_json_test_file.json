@@ -27,35 +27,35 @@
 	{
 		"person object example":
 		{
-			"name": "0xB0BAFE77",
-			"job": "Professional Geek",
-			"faves":
-			{
-				"color":
-				[
-					"Black",
-					"White"
-				],
-				"food":
-				[
-					"Pizza",
-					"Cheeseburger",
-					"Steak"
-				]
-			},
-			"vehicle":
-			{
-				"make": "Subaru",
-				"model": "WRX STI",
-				"year": 2018,
-				"color":
-				{
-					"Primary": "Black",
-					"Secondary": "Red"
-				},
-				"transmission": "M",
-				"msrp": 26995.00
-			}
+	    	"name": "0xB0BAFE77",
+	    	"job": "Professional Geek",
+	    	"faves":
+	    	{
+	    		"color":
+	    		[
+	    			"Black",
+	    			"White"
+	    		],
+	    		"food":
+	    		[
+	    			"Pizza",
+	    			"Cheeseburger",
+	    			"Steak"
+	    		]
+	    	},
+	    	"vehicle":
+	    	{
+	    		"make": "Subaru",
+	    		"model": "WRX STI",
+	    		"year": 2018,
+	    		"color":
+	    		{
+	    			"Primary": "Black",
+	    			"Secondary": "Red"
+	    		},
+	    		"transmission": "M",
+	    		"msrp": 26995.00
+	    	}
 		}
 	},
 	"key_07_string_stuff":
@@ -65,43 +65,48 @@
 		"Specials": "!@#$%^&*()_+-=[]{}<>,./?;':",
 		"Digits": "0123456789",
 		"0123456789": "Digits",
-		"Empty string": "",
-		"":"Empty key",
 		"key_case_lower": "key_case_lower value",
 		"KEY_CASE_UPPER": "KEY_CASE_UPPER VALUE",
-		"Escaped Chars":
+		"Escape Characters":
 		{
-			"Escape - All": "\\\/\"\b\f\n\r\t\u0033",
-			"Escape - Quotation Mark": "\"",
-			"Escape - Backslash/Reverse Solidus": "\\",
-			"Escape - Slash/Solidus (Not a mandatory escape)": "\/ and / work",
-			"Escape - Backspace": "\b",
-			"Escape - Formfeed": "\f",
-			"Escape - Linefeed": "\n",
-			"Escape - Carriage Return": "\r",
-			"Escape - Horizontal Tab": "\t",
-			"Escape - Unicode": "\u00AF\\_(\u30C4)_\/\u00AF"
+	    	"Escape - All": "\\\/\"\b\f\n\r\t\u0033",
+	    	"Escape - Quotation Mark": "\"",
+	    	"Escape - Backslash/Reverse Solidus": "\\",
+	    	"Escape - Slash/Solidus (Not a mandatory escape)": "\/ and / work",
+	    	"Escape - Backspace": "\b",
+	    	"Escape - Formfeed": "\f",
+	    	"Escape - Linefeed": "\n",
+	    	"Escape - Carriage Return": "\r",
+	    	"Escape - Horizontal Tab": "\t",
+	    	"Escape - Unicode": "\u00AF\\_(\u30C4)_\/\u00AF"
 		}
 	},
     "key_08_text_of_json_text": "{\"object with 1 member\": [\"array with 1 element\"]}",
     "key_09_quotes":  "&#34; \u0022 `%22 0x22 034 &#x22;",
-	"key_10_spacing" : {
-		"compact":[1,2,3,4],
+	"key_10_empty":
+	{
+		"Empty Value": "",
+		"":"Empty Key",
+		"Empty Array":[],
+		"Empty Object":{}
+	},
+	"key_11_spacing" : {
+		"compact":[1,2,3,4,"a","b","c","d"],
 		"expanded":	    	    	    	    [
-									"This "
+	    		    		    	"This "
 	    ,       	  
 	    		                    "part"
-	    			,"has ",                                     "valid ",
-				        "spacing.\n",
+	    	    	,"has ",                                     "valid ",
+	    		        "spacing.\n",
 		"JSON ",
 	    	"only ",
-				"cares ",
-					"about ",
-						"whitespace ",
-							"inside ",
-								"of",
-									"strings."
-										],
+	    		"cares ",
+	    			"about ",
+	    		    	"whitespace ",
+	    		    		"inside ",
+	    		    			"of",
+	    		    		    	"strings."
+	    		    		    		],
 	    "valid JSON whitespace":
 	    	[
 	    	"Space",
@@ -112,34 +117,28 @@
 		  "valid JSON string whitespace":
 		  	["Space"]
 	},
-	"key_11_code_comments": 
+	"key_12_code_comments": 
 	{
 		"single line":["C","REM","::","NB.","#","%","//","'","!",";","--","*","||","\"","\\","*>"],
 		"multi-line":
 		[
-			"/* ~ */",
-			"#cs ~ #ce",
-			"/+ ~ +/",
-			"/# ~ #/",
-			"<# ~ #>",
-			"<!-- ~ -->",
-			"=begin ~ =cut",
-			"#`( ~ )",
-			"=begin ~ =end",
-			"{- ~ -}",
-			"(* ~ *)",
-			"{ ~ }",
-			"{# ~ #}",
-			"{{! ~ }}",
-			"{{!-- ~ --}}",
-			"|# ~ #|",
-			"%{ ~ %}",
-			"#| ~ |#",
-			"#[ ~ ]#",
-			"--[[ ~ ]],",
-			"--[=[ ~ ]=],",
-			"--[=...=[ ~ ]=...=]",
-			"\" ~ \""
+	    	"/*", "text", "*/",
+	    	"/+", "text", "+/",
+	    	"/#", "text", "#/",
+	    	"<#", "text", "#>",
+	    	"<!--", "text", "-->",
+	    	"#`(", "text", ")",
+	    	"{-", "text", "-}",
+	    	"(*", "text", "*)",
+	    	"{", "text", "}",
+	    	"{#", "text", "#}",
+	    	"{{!--", "text", "--}}",
+	    	"|#", "text", "#|",
+	    	"%{", "text", "%}",
+	    	"#|", "text", "|#",
+	    	"#[", "text", "]#",
+	    	"--[[", "text", "]],",
+	    	"\"", "text", "\""
 		]
 	}
 }
