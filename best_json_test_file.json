@@ -9,15 +9,15 @@
 	},
 	"key_4_obj_num":
 	{
-		"int": 1234567890,
-		"neg_int": -420,
-		"frac": 0.987654321,
-		"exp": 99e2,
-		"exp_neg": -1e-999,
-		"exp_pos": 11e+111,
-		"mixed": -3.14159e+100
+		"Integer": 1234567890,
+		"Integer negative": -420,
+		"Fraction/decimal": 0.987654321,
+		"Exponent": 99e2,
+		"Exponent Negative": -1e-999,
+		"Exponent Positive": 11e+111,
+		"Mix of all": -3.14159e+100
 	},
-	"key_5_arr_matrix": 
+	"key_5_arr_simple_matrix": 
 	[
 		[0,1,2],
 		[0,1,2],
@@ -60,11 +60,15 @@
 	},
 	"key_07_string_stuff":
 	{
-		"ALPHA_UPPER": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-		"alpha_lower": "abcdefghijklmnopqrstuvwxyz",
-		"ASCII_Specials": "!@#$%^&*()_+-=[]{}<>,./?;':",
+		"ALPHA UPPER": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+		"alpha lower": "abcdefghijklmnopqrstuvwxyz",
+		"Specials": "!@#$%^&*()_+-=[]{}<>,./?;':",
 		"Digits": "0123456789",
 		"0123456789": "Digits",
+		"Empty string": "",
+		"":"Empty key",
+		"key_case_lower": "key_case_lower value",
+		"KEY_CASE_UPPER": "KEY_CASE_UPPER VALUE",
 		"Escaped Chars":
 		{
 			"Escape - All": "\\\/\"\b\f\n\r\t\u0033",
@@ -77,8 +81,7 @@
 			"Escape - Carriage Return": "\r",
 			"Escape - Horizontal Tab": "\t",
 			"Escape - Unicode": "\u00AF\\_(\u30C4)_\/\u00AF"
-		},
-		"": ""
+		}
 	},
     "key_08_text_of_json_text": "{\"object with 1 member\": [\"array with 1 element\"]}",
     "key_09_quotes":  "&#34; \u0022 `%22 0x22 034 &#x22;",
