@@ -23,7 +23,7 @@
 		[0, 1, 2],
 		[0, 1, 2]
 	],
-	"key_6_nested_obj_and_arr":
+	"key_6_nested_obj_arr":
 	{
 		"person object example":
 		{
@@ -65,8 +65,8 @@
 		"Specials": "!@#$%^&*()_+-=[]{}<>,./?;':",
 		"Digits": "0123456789",
 		"0123456789": "Digits",
-		"key_case_lower": "key_case_lower value",
-		"KEY_CASE_UPPER": "KEY_CASE_UPPER VALUE",
+		"key_case_lower": "key_case_lower_value",
+		"KEY_CASE_UPPER": "KEY_CASE_UPPER_VALUE",
 		"Escape Characters": {
 			"Escape - All": "\\\/\"\b\f\n\r\t\u0033",
 			"Escape - Quotation Mark": "\"",
@@ -94,9 +94,8 @@
 		"compact":[1,2,3,4,"a","b","c","d"],
 		"expanded":
 		[
-			"This ",                      "part"
-,"has","valid ",           
-															"spacing.\n",
+			"This ",                      "is"  			          ,"considered"
+						,"valid ",				    "spacing.\n",
 			"JSON ",
 				"only ",
 					"cares ",
@@ -106,8 +105,11 @@
 									"of",
 										"strings."
 											],
-		"valid JSON whitespace": ["Space", "Linefeed", "Carriage Return", "Horizontal Tab"],
-		"valid JSON string whitespace":["Space"]
+		"valid JSON whitespace":
+					["Space",
+				"Linefeed",
+			"Carriage Return",
+		"Horizontal Tab"]
 	},
 	"key_12_code_comments":
 	{
