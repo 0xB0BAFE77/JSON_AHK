@@ -131,24 +131,25 @@ Class JSON_AHK
     ;___________________________|_________________________________________________________________________________________________________________|
     
     ;==================================================================================================================
-    ; JSON export settings              ;Default|
-    Static indent_unit       := "`t"     ; `t    | Set to desired indent (EX: "  " for 2 spaces)
-    Static esc_slash         := False    ; False | Optionally escape forward slashes when exporting JSON
-    Static ob_new_line       := True     ; True  | Open brace is put on a new line
-    Static ob_val_inline     := False    ; False | Open braces on a new line are indented to match value
-    Static cb_new_line       := True     ; True  | Close brace is put on a new line
-    Static cb_val_inline     := False    ; False | Open braces on a new line are indented to match value
+    ; JSON export settings                  ;Default|
+    Static indent_unit          := "`t"     ; `t    | Set to desired indent (EX: "  " for 2 spaces)
+    Static esc_slash            := False    ; False | Optionally escape forward slashes when exporting JSON
+    Static ob_new_line          := True     ; True  | Open brace is put on a new line
+    Static ob_val_inline        := False    ; False | Open braces on a new line are indented to match value
+    Static cb_new_line          := True     ; True  | Close brace is put on a new line
+    Static cb_val_inline        := False    ; False | Open braces on a new line are indented to match value
     
-    Static arr_val_same      := False    ; False | First value of an array appears on the same line as the brace
-    Static obj_val_same      := False    ; False | First value of an object appears on the same line as the brace
+    Static arr_val_same         := False    ; False | First value of an array appears on the same line as the brace
+    Static obj_val_same         := False    ; False | First value of an object appears on the same line as the brace
     
-    Static no_empty_brace_ws := True     ; True  | Remove whitespace from empty braces
-    Static array_one_line	 := False	 ; False | List array elements on one line instead of multiple
-    Static add_quotes        := False    ; False | Adds quotation marks to all strings if they lack one
-    Static no_braces         := False    ; False | Removes object and array braces. This invalidates its JSON
-    ;                                    ;       | format and should only be used for human consumption/readability
+    Static no_empty_brace_ws    := True     ; True  | Remove whitespace from empty braces
+    Static array_one_line	    := False	; False | List array elements on one line instead of multiple
+    Static add_quotes           := False    ; False | Adds quotation marks to all strings if they lack one
+    Static no_braces            := False    ; False | Removes object and array braces. This invalidates its JSON
+    ;                                       ;       | format and should only be used for human consumption/readability
     ; User settings for converting JSON
-    Static strip_quotes      := False    ; False | Removes surrounding quotation marks from
+    Static strip_quotes         := False    ; False | Removes quotation marks from strings on export
+    Static dupe_key_check       := True     ; True  | Notifies users of dupliciate keys.
     ;==================================================================================================================
     
     ; Test file (very thorough)
@@ -162,11 +163,16 @@ Class JSON_AHK
                         ,"e"    : "^[ |\t|\n|\r]*(\{[ |\t|\n|\r]*\}|\[[ |\t|\n|\r]*\])[ |\t|\n|\r]*$"}
     
     ; Used to assess values (string, number, true, false, null)
-    Static  is_val :=   {"0":"n" ,"5":"n" ,0:"n" ,5:"n" ,"-" :"n"
+    Static is_val   :=  {"0":"n" ,"5":"n" ,0:"n" ,5:"n" ,"-" :"n"
                         ,"1":"n" ,"6":"n" ,1:"n" ,6:"n" ,"t" :"b"
                         ,"2":"n" ,"7":"n" ,2:"n" ,7:"n" ,"f" :"b"
                         ,"3":"n" ,"8":"n" ,3:"n" ,8:"n" ,"n" :"b"
                         ,"4":"n" ,"9":"n" ,4:"n" ,9:"n" ,"""":"s" }
+    
+    Static is_ws    :=  {" "    :True
+                        ,"`t"   :True
+                        ,"`r"   :True
+                        ,"`n"   :True }
     
     test() {
         ; IfElse vs ternary,    25 MB file,         5 iterations
@@ -250,8 +256,11 @@ Class JSON_AHK
     preview(save:=0) {
         txt := this.to_json(this.to_ahk(this.test_file))
         save ? Clipboard := txt : ""
+        ; This msgbox needs to be replaced by a custom made edit box
+        ; that displays the text in monospaced font
+        ; MsgBox makes JSON files look hideous and you can't set font
         MsgBox, % txt
-        Return ""
+        Return txt
     }
     
     ; Recursively extracts values from an object
@@ -299,7 +308,7 @@ Class JSON_AHK
                     ? ("`n"
                         . ind_big
                         . value)
-                : this.to_obj_error(value))
+                : this.to_json_error(value))
                 . ","
             ; If object, add key and colon
             : "`n" ind_big . key ": "
@@ -307,7 +316,7 @@ Class JSON_AHK
                     ? this.to_json_extract(value, this.is_array(value), ind_big)
                 : RegExMatch(value, this.rgx[this.is_val[SubStr(value, 1, 1)]])
                     ? value
-                : this.to_obj_error(value))
+                : this.to_json_error(value))
                 . ","
         
         ;MsgBox, % "type: " type "`nkey: " key "`nvalue: " value "`nstr: " str
@@ -353,8 +362,8 @@ Class JSON_AHK
         Return str
     }
     
-    to_obj_error(msg) {
-        MsgBox, % "to_json() error.`n`n" msg
+    to_json_error(msg) {
+        MsgBox, % "to_json_error() error message.`n`nMessage:`n" msg
         Return
     }
     
@@ -381,26 +390,7 @@ Class JSON_AHK
         str := RTrim(str, ",")
         Return str (type ? "]" : "}")
     }
-
-/*
-[     "JSON Test Pattern pass8",
-	{
-		"object with 1 member":
-		[
-			"array with 1 element"
-		]
-	},
-	{},
-	[],
-	{
-		"test":"one",
-		"test2":"two"
-	},
-	-42,
-	true,
-	false,
-*/
-
+    
     stringify_txt(txt){
         ; Remove all non-space whitespace
         ; Tabs/linefeeds/carriage returns are escaped in strings
@@ -445,74 +435,15 @@ Class JSON_AHK
         ,p_i    := 0                        ; Tracks path arrays and path type
         ,this.i := 0                        ; Tracks current position in the json string. Class var for error checking.
         ,char   := ""                       ; Current character
-        ,next   := "s"                      ; Next expected action: (s)tart, (k)ey, (v)alue, (a)rray
+        ,next   := "s"                      ; Next expected action: (s)tart, (k)ey, (v)alue, (a)rray, (e)nder
         ,m_     := ""                       ; Stores regex matches
         ,m_str  := ""                       ; Stores regex match subpattern
         ,max    := StrLen(json)             ; Track total characters in json
         ,strip_q:= (this.strip_quotes       ; Set whether quotes should be stripped
             ? "" : """")
         
-        ; Define whitespace
-        ,is_ws  :=  {" " :True      ; Space
-                    ,"`t":True      ; Tab
-                    ,"`n":True      ; New Line
-                    ,"`r":True }    ; Carriage Return
-        
-        ; Value validator and regex key assigner
-        ,is_val :=  {"0":"n" ,"5":"n" ,0:"n" ,5:"n" ,"-" :"n"
-                    ,"1":"n" ,"6":"n" ,1:"n" ,6:"n" ,"t" :"b"
-                    ,"2":"n" ,"7":"n" ,2:"n" ,7:"n" ,"f" :"b"
-                    ,"3":"n" ,"8":"n" ,3:"n" ,8:"n" ,"n" :"b"
-                    ,"4":"n" ,"9":"n" ,4:"n" ,9:"n" ,"""":"s" }
-        
         ; Store JSON in class for error detection
         this.json := json
-        
-        ; For tracking object path, would using a string with substring be faster than array and push/pop?
-        ; Can bit shifting be used as a replacement for type (tracks if current path is an array or object so a bunch of true/false)?
-        
-        ;~ While (this.i < max)
-            ;~ (char := SubStr(json,++this.i,1)) = " "                                 ; Check if non-string whitespace
-                ;~ ? ""                                                                ; If whitespace, do nothing
-            ;~ : next == "v"                                                           ; If value is expected
-                ;~ ? is_val[char]                                                      ; Check if valid start to string/num/null/bool
-                    ;~ ? RegExMatch(json, rgx[is_val[char]], m_, this.i)               ; Validate through regex
-                        ;~ ? (obj[path*] := (is_val[char]=="s"                         ; If string and a backslash is present, decode
-                            ;~ ? (InStr(m_str, "\")                                    ; Check for escape characters
-                                ;~ ? (this.strip_quotes ? "" : """")                   ; Optional quotes
-                                    ;~ . this.string_decode(SubStr(m_str,2,-1))        ; If escape chars present, decode string
-                                    ;~ . (this.strip_quotes ? "" : """")               ; Optional quotes
-                                ;~ : this.strip_quotes                                 ; If strip quotes is true
-                                    ;~ ? SubStr(m_str,2,-1)                            ; Strip quotes
-                                    ;~ : m_str )                                       ; Else send with quotes
-                            ;~ : m_str )                                               ; If not a string, use captured value
-                            ;~ ,this.i += StrLen(m_str)-1, next := "e" )               ; Update index and next
-                    ;~ : this.to_json_err("value", is_val[char])                       ; Invalid string/num/bool/null
-                ;~ : InStr("{[", char)                                                 ; If not a value, check if new object or array
-                    ;~ ? (obj[path*] := {}, next := (char == "{" ? "k" : "a") )        ; Add new object and get key/value
-                ;~ : this.to_json_err("value")                                         ; Invalid value/object/array
-            ;~ : next == "e"                                                           ; If an ender is expected
-                ;~ ? char == ","                                                       ; If another value is expected
-                    ;~ ? type[p_i] ? (path[p_i]++, next := "v" )                       ; If array, increment index
-                    ;~ : (path.Pop(), type.Pop(), --p_i, next := "k" )                 ; Else object so pop key and get a new one
-                ;~ : ((char == "}" && !type[p_i]) || (char == "]" && type[p_i]))       ; If valid end of object/array
-                    ;~ ? (path.Pop(), type.Pop(), --p_i, next := "e")                  ; Remove last key and type
-                ;~ : this.to_json_err("end", type[p_i])                                ; If invalid ender, error
-            ;~ : next == "k"                                                           ; If object key expected
-                ;~ ? RegExMatch(json, rgx.k, m_, this.i)                               ; If valid key and colon are present
-                    ;~ ? (path[++p_i] := m_str, type[p_i] := 0                         ; Add key and update type
-                    ;~ , this.i += StrLen(m_)-1, next := "v" )                         ; Get next value
-                ;~ : char == "}" ? next := "e"                                         ; Else check if end of object
-                ;~ : this.to_json_err("key")                                           ; If invalid key, error
-            ;~ : next == "a"                                                           ; If new array
-                ;~ ? char == "]" ? next := "e"                                         ; Check if end of array
-                ;~ : (path[++p_i] := 1, type[p_i] := 1, --this.i, next := "v")         ; Else increment index, update type, decrement char index
-            ;~ : next == "s"                                                           ; If start of JSON
-                ;~ ? char == "{" ? (next := "k")                                       ; If valid JSON object, get a key
-                ;~ : char == "[" ? (next := "a")                                       ; If valid array, get value
-                ;~ : this.to_json_err("start")                                         ; If invalid start, error
-            ;~ : ""
-            ;~ ;,this.tt("index: " this.i "`nmax: " max "`np_i: " p_i "`nnext: " next "`nA_Index: " A_Index)
         
         ;~ While (this.i < max)
         ;~ {
@@ -623,12 +554,12 @@ Class JSON_AHK
         ;~ }
         
         While (this.i < max)
-            ((char := SubStr(json,++this.i,1)) == " ")
+            (char := SubStr(json,++this.i,1)) == " "
                 ? ""
-            : (next == "v")
-                ? is_val[char]
-                    ? RegExMatch(json, this.rgx[is_val[char]], m_, this.i)
-                        ? ( obj[path*] := (is_val[char]=="s") 
+            : next == "v"
+                ? this.is_val[char]
+                    ? RegExMatch(json, this.rgx[this.is_val[char]], m_, this.i)
+                        ? ( obj[path*] := (this.is_val[char]=="s") 
                             ? InStr(m_str, "\")
                                 ? strip_q . this.string_decode(SubStr(m_str,2,-1)) . strip_q
                                 : this.strip_quotes     
@@ -637,55 +568,55 @@ Class JSON_AHK
                             : m_str
                         ,this.i += StrLen(m_str)-1
                         ,next := "e" )
-                    : this.to_json_err("value", "this.view_obj(obj): " this.view_obj(obj) "`np_i: " p_i)
-                : (char == "{")
+                    : this.to_json_err("value", this.is_val[char])
+                : char == "{"
                     ? (obj[path*] := {}, next := "k")
-                : (char == "[")
+                : char == "["
                     ? (obj[path*] := {}, next := "a")
-                : this.to_json_err("value", "this.view_obj(obj): " this.view_obj(obj) "`np_i: " p_i)
-            : (next == "e")
-                ? (char == ",")
+                : this.to_json_err("value")
+            : next == "e"
+                ? char == ","
                     ? type[p_i]
                         ? (path[p_i]++, next := "v")
                     : (path.Pop(), type.Pop(), --p_i, next := "k")
-                : ((char == "}" && !type[p_i]) 
-                || (char == "]" && type[p_i]))
+                : (char == "}" && !type[p_i])
+                || (char == "]" && type[p_i])
                     ? (path.Pop(), type.Pop(), --p_i)
-                : this.to_json_err("end")
-            : (next == "k")
-                ? (char == "}")
-                    ? next := "e"
-                : RegExMatch(json, this.rgx.k, m_, this.i)
-                    ? (path[++p_i] := m_str, type[p_i] := 0
-                        ,this.i += StrLen(m_) - 1, next := "v" )
+                : this.to_json_err("end", type[p_i])
+            : next == "k"
                 ; Why does this not work?!
-                ; There is something off with the key regex match
-                ; May rewrite this. Remove the key regex completely,
-                ; use the string check from next=value, implement a
-                ; way to track if assigning a string or an object key,
-                ; and include a colon check.
+                ; Why do I have to do the end brace check first?
+                ; The regex match for the key should fail and go on but it doesn't.
+                ; There is something off with the key regex match...
+                ; Also, for consideration:
+                ; Move the key check out of here, use the string regex in the value section
+                ; Would need to have a variable to track if key or string.
+                ; Will need a colon token checker, too.
                 ;~ ? RegExMatch(json, this.rgx.k, m_, this.i)
                     ;~ ? (path[++p_i] := m_str, type[p_i] := 0
                         ;~ ,this.i += StrLen(m_) - 1, next := "v" )
                 ;~ : (char == "}")
-                    ;~ ? next := "e"
-                : this.to_json_err("key", "this.view_obj(obj): " this.view_obj(obj) "`np_i: " p_i)
-            : (next == "a")
-                ? (char == "]")
+                    ;~ ? next := "e"                ? (char == "}")
+                ? char == "}"
                     ? next := "e"
-                : (path[++p_i] := 1, type[p_i] := 1 ,next := "v", --this.i)
-            : (next == "s")
-                ? (char == "{")
-                    ? next := "k"
-                : (char == "[")
-                    ? next := "a"
-                : this.to_json_err("start", "this.view_obj(obj): " this.view_obj(obj) "`np_i: " p_i)
-            : ""
+                : RegExMatch(json, this.rgx.k, m_, this.i)
+                    ? (path[++p_i] := m_str, type[p_i] := 0
+                        ,this.i += StrLen(m_) - 1, next := "v" )
+                : this.to_json_err("key")
+            : next == "a"
+                ? char == "]" ? next := "e"
+                : (path[++p_i] := 1, type[p_i] := 1, next := "v", --this.i)
+            : next == "s"
+                ? char == "{" ? next := "k"
+                : char == "[" ? next := "a"
+                : this.to_json_err("start")
+            : this.basic_error("Invalid next variable during parse value."
+                . "`nThe end user should never see this message.")
         
-        this.json := ""             ; Post conversion clean up
+        this.json := ""                         ; Post conversion clean up
         
-        (p_i != 0)                  ; Verify there are no open objects or arrays
-            ? this.msg("Error! path index p_i is not 0!") ;this.to_json_err("")  ; Error if p_i isn't 0
+        (p_i != 0)                              ; Verify there are no open objects or arrays left
+            ? this.to_json_err("braces", p_i)
             : ""
         
         Return obj
@@ -706,9 +637,9 @@ Class JSON_AHK
         Exit
     }
     
-    error_display(offset:=20) {
+    error_display(txt, i, offset:=20) {
         max := StrLen(this.json)
-        min := (this.i-offset < 0   ? 0     : this.i-offset )
+        min := (this.i-offset < 1   ? 1     : this.i-offset )
         max := (this.i+offset > max ? max   : this.i+max )
         Return SubStr(this.json, min, this.i-min-1)
                     . ">-->" SubStr(this.json, this.i, 1) "<--<"
@@ -716,7 +647,7 @@ Class JSON_AHK
     }
     
     string_decode(txt) {
-        txt := StrReplace(txt,  "\b", "`b")     ; Backspace
+        txt := StrReplace(txt, "\b", "`b")      ; Backspace
         ,txt:= StrReplace(txt, "\f", "`f")      ; Formfeed
         ,txt:= StrReplace(txt, "\n", "`n")      ; Linefeed
         ,txt:= StrReplace(txt, "\r", "`r")      ; Carriage Return
@@ -729,14 +660,14 @@ Class JSON_AHK
     ; Encodes specific chars to escaped chars
     string_encode(txt) {
         Local
-        txt := StrReplace(SubStr(txt, 2, -1) ,"\" ,"\\" )
-        ,txt := StrReplace(txt ,"`b" ,"\b" )
-        ,txt := StrReplace(txt ,"`f" ,"\f" )
-        ,txt := StrReplace(txt ,"`n" ,"\n" )
-        ,txt := StrReplace(txt ,"`r" ,"\r" )
-        ,txt := StrReplace(txt ,"`t" ,"\t" )
-        ,txt := StrReplace(txt ,"""" ,"\""")
-        Return """" StrReplace(txt ,"\\u" ,"\u") """"
+        txt  := StrReplace(txt ,"\"  ,"\\" )    ; Encode backslashes first
+        ,txt := StrReplace(txt ,"`b" ,"\b" )    ; Backspace
+        ,txt := StrReplace(txt ,"`f" ,"\f" )    ; Formfeed
+        ,txt := StrReplace(txt ,"`n" ,"\n" )    ; Linefeed
+        ,txt := StrReplace(txt ,"`r" ,"\r" )    ; Carriage Return
+        ,txt := StrReplace(txt ,"`t" ,"\t" )    ; Tab (Horizontal)
+        ,txt := StrReplace(txt ,"""" ,"\""")    ; Quotation Marks
+        Return  StrReplace(txt ,"\\u" ,"\u")    ; Fix Unicode Escapes
     }
     
     ; Default settings for json_ahk
