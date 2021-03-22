@@ -32,8 +32,6 @@ Class JSON_AHK
     ;   - Write .validate() (use to_obj as a template w/o actually writing to the object)
     ;   - Write ._default() - Method to reset the JSON export display settings
     ;   - Speaking of export, should I write an export() function that works like import() but saves?
-    ;   - .strip_quotes has not be implemented yet
-    ;     This strips off string quotation marks when creating the AHK object
     ;   - Add error detection for duplicate keys (this includes keys that differe only in case)
     ;   - Add last_error property that can store a string saying what the last error was.
     ;   - Verify all return values
@@ -131,9 +129,8 @@ Class JSON_AHK
     ;___________________________|_________________________________________________________________________________________________________________|
     
     ;==================================================================================================================
-    ; JSON export settings                  ;Default|
+    ; AHK to JSON (Export) settings         ;Default|
     Static indent_unit          := "`t"     ; `t    | Set to desired indent (EX: "  " for 2 spaces)
-    Static esc_slash            := False    ; False | Optionally escape forward slashes when exporting JSON
     Static ob_new_line          := True     ; True  | Open brace is put on a new line
     Static ob_val_inline        := False    ; False | Open braces on a new line are indented to match value
     Static cb_new_line          := True     ; True  | Close brace is put on a new line
@@ -143,11 +140,12 @@ Class JSON_AHK
     Static obj_val_same         := False    ; False | First value of an object appears on the same line as the brace
     
     Static no_empty_brace_ws    := True     ; True  | Remove whitespace from empty braces
-    Static array_one_line	    := False	; False | List array elements on one line instead of multiple
+    Static array_one_line       := False    ; False | List array elements on one line instead of multiple
     Static add_quotes           := False    ; False | Adds quotation marks to all strings if they lack one
     Static no_braces            := False    ; False | Removes object and array braces. This invalidates its JSON
-    ;                                       ;       | format and should only be used for human consumption/readability
-    ; User settings for converting JSON
+                                            ;       | format and should only be used for human consumption/readability
+    
+    ; JSON to AHK (import) settings
     Static strip_quotes         := False    ; False | Removes quotation marks from strings on export
     Static dupe_key_check       := True     ; True  | Notifies users of dupliciate keys.
     ;==================================================================================================================
@@ -181,7 +179,7 @@ Class JSON_AHK
         
         obj     := {}
         jtxt    := json_ahk.test_file
-        ;jtxt    := json_ahk.import()
+        jtxt    := json_ahk.import()
         i       := 1
         
         ;this.array_one_line := True
@@ -207,7 +205,6 @@ Class JSON_AHK
     }
     
     on_load() {
-
         Return
     }
     
@@ -270,96 +267,59 @@ Class JSON_AHK
     to_json_extract(obj, type, ind:="") {
         Local
         
-        ;MsgBox, % "Starting Extract:`n`ntype: " type "`nind: >->" ind "<-<`n`n" this.view_obj(obj)
-        
         ind_big := ind . this.indent_unit                                   		; Set big indent
+        str     := "`n"
+                . ind
+                . (type ? "[" : "{")
         
-        ,str    := (this.ob_new_line
-                        ? "`n" (this.ob_val_inline ? ind_big : ind)                 ; Build beginning of arr/obj
-                    : "")                                                   		; Create brace prefix
-                . (this.no_braces ? "" : type ? "[" : "{")                  		; Add correct brace
-        
-        ;~ For key, value in obj
-            ;~ str .= (this.is_array(value)                                    		; Check if value is array
-                    ;~ ? (type ? ""                                            		; If current obj is array, do nothing
-                        ;~ : "`n" ind_big key ": ")                            		; Else, construct obj prefix
-                    ;~ . this.to_json_extract(value, 1, ind_big)           		    ; Then get extracted values
-                ;~ : IsObject(value)                                           		; If value not array, check if object
-                    ;~ ? (type ? "" : key ": ")                                		; Construct obj prefix
-                        ;~ . this.to_json_extract(value, 0, ind_big)           		; Extract values
-                ;~ : (type && this.array_one_line ? "" : "`n" ind_big)					; Should array elements be on 1 line
-                    ;~ . (type ? "" : key ": ")                       					; If object, add key
-                    ;~ . (InStr(value, """")                                   		; If string, encode: backslashes, backspaces
-                        ;~ ? ("""" StrReplace(StrReplace(StrReplace(StrReplace(""		; formfeeds, linefeeds, carriage returns,
-                        ;~ . StrReplace(StrReplace(StrReplace(StrReplace(StrReplace("" ; horizontal tabs, and fix \\u
-                        ;~ . SubStr(value, 2, -1),"\","\\"),"`b","\b"),"`f","\f")		; Yes, this is ugly af 
-                        ;~ ,"`n","\n"),"`r","\r"),"`t","\t"),"""","\"""),"\\u","\u")	; It's also faster thi
-                        ;~ ,this.esc_slash_search, this.esc_slash_replace) """")					; Also, optionally escapes slashes
-                        ;~ : value ) )                                         		; If not string, bypass decode and add value
-                    ;~ . ","                                                   		; Always end with a comma
-        
-        ;;;;;;;;;;;;;;;;;;;; LEFT OFF HERE;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
         For key, value in obj
-            ;this.msg("SubStr(value, 1, 1): " SubStr(value, 1, 1) "`n" str)
-            str .= (type)
-                ? (IsObject(value)
+            ; Add value prefix
+            str .= "`n"
+                    . ind_big
+                    . (type
+                        ? "" 
+                        : this.string_encode(key) ": ")
+                ; If value is an object, extract it
+                . (IsObject(value)
                     ? this.to_json_extract(value, this.is_array(value), ind_big)
-                : RegExMatch(value, this.rgx[this.is_val[SubStr(value, 1, 1)]])
-                    ? ("`n"
-                        . ind_big
-                        . value)
-                : this.to_json_error(value))
+                    ; Otherwise, validate value
+                    : (v := this.is_val[SubStr(value,1,1)])
+                        ; If valid and is string, encode string and add
+                        ? (v == "s") ? this.string_encode(value)
+                        ; If not string, add value
+                        : value
+                    ; If regex validation fails, notify user
+                    ; This will be replaced with an error finder later
+                    : this.basic_error("to_json error!`nvalue: " value "`nv: " v "`nstr: " str))
                 . ","
-            ; If object, add key and colon
-            : "`n" ind_big . key ": "
-                ? (IsObject(value)
-                    ? this.to_json_extract(value, this.is_array(value), ind_big)
-                : RegExMatch(value, this.rgx[this.is_val[SubStr(value, 1, 1)]])
-                    ? value
-                : this.to_json_error(value))
-                . ","
-        
-        ;MsgBox, % "type: " type "`nkey: " key "`nvalue: " value "`nstr: " str
-        
-        ;~ For key, value in obj
-            ;~ str .= (this.is_array(value)
-                    ;~ ? (type ? ""
-                        ;~ : "`n" ind_big key ": ")
-                    ;~ . this.to_json_extract(value, 1, ind_big)
-                ;~ : IsObject(value)
-                    ;~ ? (type ? "" : key ": ")
-                        ;~ . this.to_json_extract(value, 0, ind_big)
-                ;~ : (type && this.array_one_line ? "" : "`n" ind_big)
-                    ;~ . (type ? "" : key ": ")
-                    ;~ . (InStr(value, """")
-                        ;~ ? ("""" StrReplace(StrReplace(StrReplace(StrReplace(""
-                        ;~ . StrReplace(StrReplace(StrReplace(StrReplace(StrReplace(""
-                        ;~ . SubStr(value, 2, -1),"\","\\"),"`b","\b"),"`f","\f")
-                        ;~ ,"`n","\n"),"`r","\r"),"`t","\t"),"""","\"""),"\\u","\u")
-                        ;~ ,this.esc_slash_search, this.esc_slash_replace) """")
-                        ;~ : value ) )
-                    ;~ . ","
         
         str := RTrim(str, ",")   							; Strip off last comma
-        If (type && this.array_one_line)						; Array elements on 1 line check
-            str .= "]"									; If yes, cap off with bracket
-        Else {
-            str .= (this.cb_new_line							; Otherwise check if closing brace is on new line
-                ? "`n" (this.cb_val_inline ? ind_big : ind)		; Check if brace should be indented to value
-                : "" )											; Otherwise do nothing
-            . (this.no_braces ? "" : type ? "]" : "}")		; Add appropriate closing brace
-        }
+            . "`n"
+            . ind
+            . (type ? "]" : "}")
+        ;If (type && this.array_one_line)						; Array elements on 1 line check
+        ;    str .= "]"									; If yes, cap off with bracket
+        ;Else {
+        ;    str .= (this.cb_new_line							; Otherwise check if closing brace is on new line
+        ;        ? "`n" (this.cb_val_inline ? ind_big : ind)		; Check if brace should be indented to value
+        ;        : "" )											; Otherwise do nothing
+        ;    . (this.no_braces ? "" : type ? "]" : "}")		; Add appropriate closing brace
+        ;}
         
         ; Empty object checker
         ;; In AHK v1, all arrays are objects so there is no way to distinguish between an empty array and empty object
         ;; When constructing JSON output, empty arrays will always show as empty objects
         ;; Can I just used array.Length()?
         If (this.no_empty_brace_ws && RegExMatch(str, this.rgx.e))
-            str := this.no_braces
-                ? ""
+            Return this.no_braces ? ""
                 : (this.ob_new_line ? "`n" ind : "") . "{}"
+        Else 
+            Return str
+    }
+    
+    to_json_validate() {
         
-        Return str
+        Return
     }
     
     to_json_error(msg) {
@@ -444,114 +404,6 @@ Class JSON_AHK
         
         ; Store JSON in class for error detection
         this.json := json
-        
-        ;~ While (this.i < max)
-        ;~ {
-;~ ;            MsgBox, % "this.i: " this.i "`nmax: " max
-            ;~ (char := SubStr(json,++this.i,1))
-            
-            ;~ ;Tooltip, % "this.i: " this.i "`nmax: " max "`nchar: " char "`nAsc(char): " Asc(char) "`nnext: " next "`np_i: " p_i "`npath:`n" this.view_obj(path) "`n`nobj:`n" this.view_obj(obj)
-            
-            ;~ If (char == " ") ;is_ws[char]
-                ;~ Continue
-            ;~ Else If (next == "v")
-            ;~ {
-                ;~ If is_val[char]
-                ;~ {
-                    ;~ If RegExMatch(json, rgx[is_val[char]], m_, this.i)
-                    ;~ {
-                        ;~ obj[path*] := (is_val[char]=="s") 
-                            ;~ ? InStr(m_str, "\")
-                                ;~ ? (this.strip_quotes ? "" : """")
-                                    ;~ . this.string_decode(SubStr(m_str,2,-1))
-                                    ;~ . (this.strip_quotes ? "" : """")
-                                ;~ : this.strip_quotes     
-                                    ;~ ? SubStr(m_str,2,-1)
-                                    ;~ : m_str
-                            ;~ : m_str
-                        ;~ ,this.i += StrLen(m_str)-1
-                        ;~ ,next := "e"
-                        ;~ ;MsgBox, % "VALUE`n`nchar: " char "`nnext: " next "`nthis.i: " this.i "`nis_val[char]: " is_val[char] "`nm_: " m_ "`nm_str: " m_str "`nobj[path*]: " obj[path*]
-                    ;~ }
-                    ;~ Else this.to_json_err("value", "this.view_obj(obj): " this.view_obj(obj) "`np_i: " p_i)
-                ;~ }
-                ;~ Else If (char == "{")
-                ;~ {
-                    ;~ obj[path*] := {}
-                    ;~ ,next := "k"
-                ;~ }
-                ;~ Else If (char == "[")
-                ;~ {
-                    ;~ obj[path*] := {}
-                    ;~ ,next := "a"
-                ;~ }
-                ;~ Else 
-                    ;~ this.to_json_err("value", "this.view_obj(obj): " this.view_obj(obj) "`np_i: " p_i)
-                ;~ ;MsgBox, % "VALUE`n`nchar: " char "`nis_val[char]: " is_val[char] "`nthis.view_obj(obj): " this.view_obj(obj) "`nthis.view_obj(path): " this.view_obj(path)
-            ;~ }
-            ;~ Else If (next == "e")
-            ;~ {
-                ;~ If (char == ",")
-                ;~ {
-                    ;~ If type[p_i]
-                    ;~ {
-                        ;~ path[p_i]++
-                        ;~ ,next := "v"
-                    ;~ }
-                    ;~ Else
-                    ;~ {
-                        ;~ path.Pop()
-                        ;~ ,type.Pop()
-                        ;~ ,--p_i
-                        ;~ ,next := "k"
-                    ;~ }
-                ;~ }
-                ;~ Else If ((char == "}" && !type[p_i]) || (char == "]" && type[p_i]))
-                ;~ {
-                    ;~ path.Pop()
-                    ;~ ,type.Pop()
-                    ;~ ,--p_i
-                ;~ }
-                ;~ Else this.to_json_err("end")
-            ;~ }
-            ;~ Else If (next == "k")
-            ;~ {
-                ;~ If (char == "}")
-                    ;~ next := "e"
-                ;~ Else If RegExMatch(json, rgx.k, m_, this.i)
-                ;~ {
-                    ;~ path[++p_i] := m_str
-                    ;~ ,type[p_i] := 0
-                    ;~ ,this.i += StrLen(m_) - 1
-                    ;~ ,next := "v"
-                ;~ }
-                ;~ Else
-                    ;~ this.to_json_err("key", "this.view_obj(obj): " this.view_obj(obj) "`np_i: " p_i)
-            ;~ }
-            ;~ Else If (next == "a")
-            ;~ {
-                ;~ If (char == "]")
-                    ;~ next := "e"
-                ;~ Else
-                ;~ {
-                    ;~ path[++p_i] := 1
-                    ;~ ,type[p_i] := 1
-                    ;~ ,next := "v"
-                    ;~ ,--this.i
-                ;~ }
-            ;~ }
-            ;~ Else If (next == "s")
-            ;~ {
-                ;~ If (char == "{")
-                    ;~ next := "k"
-                ;~ Else If (char == "[")
-                    ;~ next := "a"
-                ;~ Else
-                    ;~ this.to_json_err("start", "this.view_obj(obj): " this.view_obj(obj) "`np_i: " p_i)
-            ;~ }
-            ;~ Else MsgBox, "Next Var Error. A valid next was not set."
-            ;~ ;ToolTip, % "this.i: " this.i "`nmax: " max "`nchar: " char "`nnext: " next "`nA_Index: " A_Index
-        ;~ }
         
         While (this.i < max)
             (char := SubStr(json,++this.i,1)) == " "
@@ -647,6 +499,8 @@ Class JSON_AHK
     }
     
     string_decode(txt) {
+        Local
+        
         txt := StrReplace(txt, "\b", "`b")      ; Backspace
         ,txt:= StrReplace(txt, "\f", "`f")      ; Formfeed
         ,txt:= StrReplace(txt, "\n", "`n")      ; Linefeed
@@ -657,33 +511,34 @@ Class JSON_AHK
         Return StrReplace(txt, "\\", "\")       ; Reverse Slash / Solidus
     }
     
-    ; Encodes specific chars to escaped chars
+    ; Escapes necessary chars from a string
     string_encode(txt) {
         Local
-        txt  := StrReplace(txt ,"\"  ,"\\" )    ; Encode backslashes first
-        ,txt := StrReplace(txt ,"`b" ,"\b" )    ; Backspace
-        ,txt := StrReplace(txt ,"`f" ,"\f" )    ; Formfeed
-        ,txt := StrReplace(txt ,"`n" ,"\n" )    ; Linefeed
-        ,txt := StrReplace(txt ,"`r" ,"\r" )    ; Carriage Return
-        ,txt := StrReplace(txt ,"`t" ,"\t" )    ; Tab (Horizontal)
-        ,txt := StrReplace(txt ,"""" ,"\""")    ; Quotation Marks
-        Return  StrReplace(txt ,"\\u" ,"\u")    ; Fix Unicode Escapes
+        
+        txt  := StrReplace(SubStr(txt,2,-1) ,"\"  ,"\\" )   ; Encode backslashes first
+        ,txt := StrReplace(txt ,"`b" ,"\b" )                ; Backspace
+        ,txt := StrReplace(txt ,"`f" ,"\f" )                ; Formfeed
+        ,txt := StrReplace(txt ,"`n" ,"\n" )                ; Linefeed
+        ,txt := StrReplace(txt ,"`r" ,"\r" )                ; Carriage Return
+        ,txt := StrReplace(txt ,"`t" ,"\t" )                ; Tab (Horizontal)
+        ,txt := StrReplace(txt ,"""" ,"\""")                ; Quotation Marks
+        Return """" StrReplace(txt ,"\\u" ,"\u") """"       ; Fix Unicode Escapes
     }
     
     ; Default settings for json_ahk
     _default() {
-        json_ahk.indent_unit      := "`t"
-        json_ahk.esc_slash        := False
-        json_ahk.ob_new_line      := True
-        json_ahk.ob_val_inline    := False
-        json_ahk.arr_val_same     := False
-        json_ahk.obj_val_same     := False
-        json_ahk.cb_new_line      := True
-        json_ahk.cb_val_inline    := False
-        json_ahk.no_empty_brace_ws:= True
-        json_ahk.add_quotes       := False
-        json_ahk.no_braces        := False
-        json_ahk.strip_quotes     := False
+        this.indent_unit      := "`t"
+        this.esc_slash        := False
+        this.ob_new_line      := True
+        this.ob_val_inline    := False
+        this.arr_val_same     := False
+        this.obj_val_same     := False
+        this.cb_new_line      := True
+        this.cb_val_inline    := False
+        this.no_empty_brace_ws:= True
+        this.add_quotes       := False
+        this.no_braces        := False
+        this.strip_quotes     := False
         Return
     }
     
@@ -754,66 +609,7 @@ Class JSON_AHK
         
         Return table
     }
-
-    ; ===== Error checking =====
-    err_find_table() {
-        ; Validation table for a JSON file
-        ; -1  = New Object/Get Key
-        ; -2  = New Array
-        ; -3  = String Start
-        ; -4  = Empty Object
-        ; -5  = Additional Value
-        ; -6  = End of Value (Str/Num/TFN)
-        ; -7  = Start of Value (Str/Num/TFN)
-        ; -8  = End of Object/Array
-        ; -9  = End of Value, Over 1 Char
-        ; -10 = Valid JSON Start
-        
-        table    := {}
-        ;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30                      
-        ;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA                      
-        table.BG := ["BG","BG",-10 ,""  ,-10 ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Beginning
-        table.AN := ["AN","AN",-1  ,""  ,-2  ,-8  ,""  ,""  ,-7  ,""  ,""  ,""  ,-7  ,""  ,-7  ,-7  ,""  ,""  ,""  ,""  ,""  ,-7  ,""  ,-7  ,""  ,""  ,-7  ,""  ,""  ,"" ] ; Array New
-        table.ON := ["ON","ON",""  ,-4  ,""  ,""  ,""  ,""  ,-3  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Object New
-        table.OK := ["OK","OK",""  ,""  ,""  ,""  ,""  ,""  ,-3  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Object Key
-        table.OC := ["OC","OC",""  ,""  ,""  ,""  ,""  ,"VL",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Object Colon
-        table.VL := ["VL","VL",-1  ,""  ,-2  ,""  ,""  ,""  ,-7  ,""  ,""  ,""  ,-7  ,""  ,-7  ,-7  ,""  ,""  ,""  ,""  ,""  ,-7  ,""  ,-7  ,""  ,""  ,-7  ,""  ,""  ,"" ] ; Value
-        table.CC := ["CC","CC",""  ,-8  ,""  ,-8  ,-5  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Comma Close
-        ;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30                      
-        ;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA                      
-        table.ST := ["ST",""  ,"ST","ST","ST","ST","ST","ST",-6  ,"ES","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","" ] ; String
-        table.ES := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ST","ST","ST",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ST",""  ,""  ,"ST",""  ,"ST","ST",""  ,"ST","U1",""  ,"" ] ; String Escape
-        table.U1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"U2","U2","U2","U2","U2","U2","U2","U2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Unicode Char 1
-        table.U2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"U3","U3","U3","U3","U3","U3","U3","U3",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Unicode Char 2
-        table.U3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"U4","U4","U4","U4","U4","U4","U4","U4",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Unicode Char 3
-        table.U4 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ST","ST","ST","ST","ST","ST","ST","ST",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Unicode Char 4
-        ;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30                      
-        ;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA                      
-        table.NN := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ND","NI",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Number > Negative
-        table.NI := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,"D1","NI","NI",""  ,""  ,""  ,"NE","NE",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Number > Integer
-        table.ND := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,"D1",""  ,""  ,""  ,""  ,""  ,"NE","NE",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Number > Decimal
-        table.D1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"D2","D2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Decimal 1
-        table.D2 := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"D2","D2",""  ,""  ,""  ,"NE","NE",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Decimal 2
-        table.NE := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E1","E1",""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Number > Exponent
-        table.E1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Exponent 1
-        table.E2 := [-6  ,-6  ,""  ,-9  ,""  ,-9  ,-9  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; Exponent 2
-        ;            1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30                      
-        ;            spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    1-9 ABCDF a    b    e    E    f    l    n    r    s    t    u    ALL  NA                      
-        table.T1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"T2",""  ,""  ,""  ,""  ,"" ] ; true > tR
-        table.T2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"T3",""  ,"" ] ; true > trU
-        table.T3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; true > true
-        table.F1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; false > fa
-        table.F2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F3",""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; false > fal
-        table.F3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F4",""  ,""  ,""  ,"" ] ; false > fals
-        table.F4 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; false > false
-        table.N1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N2",""  ,"" ] ; null > nu
-        table.N2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N3",""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; null > nul
-        table.N3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,-6  ,""  ,""  ,""  ,""  ,""  ,""  ,"" ] ; null > null
-        
-        Return table
-    }
-
-
+    
     ; Uses char codes to assign validation table columns
     ; This bypasses AHK's "case-insensitive object key" issue
     make_valid_table_key() {
