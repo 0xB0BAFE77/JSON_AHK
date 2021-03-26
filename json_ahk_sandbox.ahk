@@ -13,6 +13,7 @@ Return
 Esc::ExitApp
 
 
+
 Class JSON_AHK
 {
     ; AHK limitations disclaimer
@@ -67,6 +68,7 @@ Class JSON_AHK
     ; .validate(json)   | true if valid else false.    | Checks if object or text is valid JSON. Offers basic error correction.                   |
     ; .import()         | JSON string or 0 if failed.  | Opens a window to select a JSON file.                                                    |
     ; .preview(p1)      | Always returns blank.        | Preview current JSON export settings. Passing true to p1 will save preview to clipboard. |
+    ; ._default()       |
     ;============================================================================================================================================='
     
     ;=============================================================================================================================================.
@@ -131,16 +133,19 @@ Class JSON_AHK
     ;==================================================================================================================
     ; AHK to JSON (Export) settings         ;Default|
     Static indent_unit          := "`t"     ; `t    | Set to desired indent (EX: "  " for 2 spaces)
+    
     Static ob_new_line          := True     ; True  | Open brace is put on a new line
     Static ob_val_inline        := False    ; False | Open braces on a new line are indented to match value
     Static cb_new_line          := True     ; True  | Close brace is put on a new line
-    Static cb_val_inline        := False    ; False | Open braces on a new line are indented to match value
+    Static cb_val_inline        := False    ; False | Close brace on a new line are indented to match value
     
     Static arr_val_same         := False    ; False | First value of an array appears on the same line as the brace
     Static obj_val_same         := False    ; False | First value of an object appears on the same line as the brace
     
     Static no_empty_brace_ws    := True     ; True  | Remove whitespace from empty braces
+    Static esc_slash            := False    ; False | Add the optional escape to forward slashes/solidus
     Static array_one_line       := False    ; False | List array elements on one line instead of multiple
+    Static empty_arr_same_line  := True     ; True  | Overrides ob_new_line and keeps empty arrays on same line as key
     Static add_quotes           := False    ; False | Adds quotation marks to all strings if they lack one
     Static no_braces            := False    ; False | Removes object and array braces. This invalidates its JSON
                                             ;       | format and should only be used for human consumption/readability
@@ -151,9 +156,9 @@ Class JSON_AHK
     ;==================================================================================================================
     
     ; Test file (very thorough)
-    ;Static test_file := "[`n`t""JSON Test Pattern pass1"",`n`t{""object with 1 members"":[""array with 1 element""]},`n`t{},`n`t[],`n`t-42,`n`ttrue,`n`tfalse,`n`tnull,`n`t{`n`t`t""integer"": 1234567890,`n`t`t""real"": -9876.543210,`n`t`t""e"": 0.123456789e-12,`n`t`t""E"": 1.234567890E+34,`n`t`t"""":  23456789012E66,`n`t`t""zero"": 0,`n`t`t""one"": 1,`n`t`t""space"": "" "",`n`t`t""quote"": ""\"""",`n`t`t""backslash"": ""\\"",`n`t`t""controls"": ""\b\f\n\r\t"",`n`t`t""slash"": ""/ & \/"",`n`t`t""alpha"": ""abcdefghijklmnopqrstuvwyz"",`n`t`t""ALPHA"": ""ABCDEFGHIJKLMNOPQRSTUVWYZ"",`n`t`t""digit"": ""0123456789"",`n`t`t""0123456789"": ""digit"",`n`t`t""special"": ""````1~!@#$``%^&*()_+-={':[,]}|;.</>?"",`n`t`t""hex"": ""\u0123\u4567\u89AB\uCDEF\uabcd\uef4A"",`n`t`t""true"": true,`n`t`t""false"": false,`n`t`t""null"": null,`n`t`t""array"":[  ],`n`t`t""object"":{  },`n`t`t""address"": ""50 St. James Street"",`n`t`t""url"": ""http://www.JSON.org/"",`n`t`t""comment"": ""// /* <!-- --"",`n`t`t""# -- --> */"": "" "",`n`t`t"" s p a c e d "" :[1,2 , 3`n`n,`n`n4 , 5`t`t,`t`t  6`t`t   ,7`t`t],""compact"":[1,2,3,4,5,6,7],`n`t`t""jsontext"": ""{\""object with 1 member\"":[\""array with 1 element\""]}"",`n`t`t""quotes"": ""&#34; \u0022 ``%22 0x22 034 &#x22;"",`n`t`t""\/\\\""\uCAFE\uBABE\uAB98\uFCDE\ubcda\uef4A\b\f\n\r\t``1~!@#$``%^&*()_+-=[]{}|;:',./<>?""`n: ""A key can be any string""`n`t},`n`t0.5 ,98.6`n,`n99.44`n,`n`n1066,`n1e1,`n0.1e1,`n1e-1,`n1e00,2e+00,2e-00`n,""rosebud""]"
-    Static test_file := "{`n`t""key_01_str"": ""String"",`n`t""key_02_num"": -1.05e+100,`n`t""key_03_true_false_null"":`n`t{`n`t`t""true"": true,`n`t`t""false"": false,`n`t`t""null"": null`n`t},`n`t""key_04_obj_num"":`n`t{`n`t`t""Integer"": 1234567890,`n`t`t""Integer negative"": -420,`n`t`t""Fraction/decimal"": 0.987654321,`n`t`t""Exponent"": 99e2,`n`t`t""Exponent negative"": -1e-999,`n`t`t""Exponent positive"": 11e+111,`n`t`t""Mix of all"": -3.14159e+100`n`t},`n`t""key_05_arr"":`n`t[`n`t`t""Value1"",`n`t`t""Value2"",`n`t`t""Value3""`n`t],`n`t""key_06_nested_obj_arr"":`n`t{`n`t`t""matrix"":`n`t`t[`n`t`t`t[`n`t`t`t`t0,`n`t`t`t`t1,`n`t`t`t`t2`n`t`t`t],`n`t`t`t[`n`t`t`t`t0,`n`t`t`t`t1,`n`t`t`t`t2`n`t`t`t],`n`t`t`t[`n`t`t`t`t0,`n`t`t`t`t1,`n`t`t`t`t2`n`t`t`t]`n`t`t],`n`t`t""person object example"":`n`t`t{`n`t`t`t""name"": ""0xB0BAFE77"",`n`t`t`t""job"": ""Professional Geek"",`n`t`t`t""faves"":`n`t`t`t{`n`t`t`t`t""color"":`n`t`t`t`t[`n`t`t`t`t`t""Black"",`n`t`t`t`t`t""White""`n`t`t`t`t],`n`t`t`t`t""food"":`n`t`t`t`t[`n`t`t`t`t`t""Pizza"",`n`t`t`t`t`t""Cheeseburger"",`n`t`t`t`t`t""Steak""`n`t`t`t`t],`n`t`t`t`t""vehicle"":`n`t`t`t`t{`n`t`t`t`t`t""make"": ""Subaru"",`n`t`t`t`t`t""model"": ""WRX STI"",`n`t`t`t`t`t""year"": 2018,`n`t`t`t`t`t""color"":`n`t`t`t`t`t{`n`t`t`t`t`t`t""Primary"": ""Black"",`n`t`t`t`t`t`t""Secondary"": ""Red""`n`t`t`t`t`t},`n`t`t`t`t`t""transmission"": ""M"",`n`t`t`t`t`t""msrp"": 26995.00`n`t`t`t`t}`n`t`t`t}`n`t`t}`n`t},`n`t""key_07_string_stuff"":`n`t{`n`t`t""ALPHA UPPER"": ""ABCDEFGHIJKLMNOPQRSTUVWXYZ"",`n`t`t""alpha lower"": ""abcdefghijklmnopqrstuvwxyz"",`n`t`t""Specials"": ""!@#$%^&*()_+-=[]{}<>,./?;':"",`n`t`t""Digits"": ""0123456789"",`n`t`t""0123456789"": ""Digits"",`n`t`t""key_case_check"": ""key_case_check lower"",`n`t`t""KEY_CASE_CHECK"": ""KEY_CASE_CHECK UPPER"",`n`t`t""Escape Characters"":`n`t`t{`n`t`t`t""ESC_01 Quotation Mark"": ""\"""",`n`t`t`t""ESC_02 Backslash/Reverse Solidus"": ""\\"",`n`t`t`t""ESC_03 Slash/Solidus (Not a mandatory escape)"": ""\/ and / work"",`n`t`t`t""ESC_04 Backspace"": ""\b"",`n`t`t`t""ESC_05 Formfeed"": ""\f"",`n`t`t`t""ESC_06 Linefeed"": ""\n"",`n`t`t`t""ESC_07 Carriage Return"": ""\r"",`n`t`t`t""ESC_08 Horizontal Tab"": ""\t"",`n`t`t`t""ESC_09 Unicode"": ""\u00AF\\_(\u30C4)_\/\u00AF"",`n`t`t`t""ESC_10 All"": ""\\\/\""\b\f\n\r\t\u0033"",`n`t`t`t""ESC_11 \/\t\u0033\t\/"": ""Key with Encodes""`n`t`t}`n`t},`n`t""key_08_text_of_json_text"": ""{\""object with 1 member\"": [\""array with 1 element\""]}"",`n`t""key_09_quotes"": ""&#34; \u0022 `%22 0x22 034 &#x22;"",`n`t""key_10_empty"":`n`t{`n`t`t""Empty Value"": """",`n`t`t"""": ""Empty Key"",`n`t`t""Empty Array"": [],`n`t`t""Empty Object"": {}`n`t},`n`t""key_11_spacing"":`n`t{`n`t`t""compact"":[1,2,3,4,""a"",""b"",""c"",""d""],`n`t`t""expanded"":`n`t`t[`n`t`t`t""This "",                      ""is""  `t`t`t          ,""considered""`n`t`t`t`t`t`t,""valid "",`t`t`t`t    ""spacing.\n"",`n`t`t`t""JSON "",`n`t`t`t`t""only "",`n`t`t`t`t`t""cares "",`n`t`t`t`t`t`t""about "",`n`t`t`t`t`t`t`t""whitespace "",`n`t`t`t`t`t`t`t`t""inside "",`n`t`t`t`t`t`t`t`t`t""of"",`n`t`t`t`t`t`t`t`t`t`t""strings.""`n`t`t`t`t`t`t`t`t`t`t`t],`n`t`t""valid JSON whitespace"":`n`t`t`t`t`t[""Space"",`n`t`t`t`t""Linefeed"",`n`t`t`t""Carriage Return"",`n`t`t""Horizontal Tab""]`n`t},`n`t""key_12_code_comments"": [""C"", ""REM"", ""::"", ""NB."", ""#"", ""%"", ""//"", ""'"", ""!"", "";"", ""--"", ""*"", ""||"", ""*>""]`n}"
-
+    Static test_file := "[`n`t""JSON Test Pattern pass1"",`n`t{""object with 1 members"":[""array with 1 element""]},`n`t{},`n`t[],`n`t-42,`n`ttrue,`n`tfalse,`n`tnull,`n`t{`n`t`t""integer"": 1234567890,`n`t`t""real"": -9876.543210,`n`t`t""e"": 0.123456789e-12,`n`t`t""E"": 1.234567890E+34,`n`t`t"""":  23456789012E66,`n`t`t""zero"": 0,`n`t`t""one"": 1,`n`t`t""space"": "" "",`n`t`t""quote"": ""\"""",`n`t`t""backslash"": ""\\"",`n`t`t""controls"": ""\b\f\n\r\t"",`n`t`t""slash"": ""/ & \/"",`n`t`t""alpha"": ""abcdefghijklmnopqrstuvwyz"",`n`t`t""ALPHA"": ""ABCDEFGHIJKLMNOPQRSTUVWYZ"",`n`t`t""digit"": ""0123456789"",`n`t`t""0123456789"": ""digit"",`n`t`t""special"": ""````1~!@#$``%^&*()_+-={':[,]}|;.</>?"",`n`t`t""hex"": ""\u0123\u4567\u89AB\uCDEF\uabcd\uef4A"",`n`t`t""true"": true,`n`t`t""false"": false,`n`t`t""null"": null,`n`t`t""array"":[  ],`n`t`t""object"":{  },`n`t`t""address"": ""50 St. James Street"",`n`t`t""url"": ""http://www.JSON.org/"",`n`t`t""comment"": ""// /* <!-- --"",`n`t`t""# -- --> */"": "" "",`n`t`t"" s p a c e d "" :[1,2 , 3`n`n,`n`n4 , 5`t`t,`t`t  6`t`t   ,7`t`t],""compact"":[1,2,3,4,5,6,7],`n`t`t""jsontext"": ""{\""object with 1 member\"":[\""array with 1 element\""]}"",`n`t`t""quotes"": ""&#34; \u0022 ``%22 0x22 034 &#x22;"",`n`t`t""\/\\\""\uCAFE\uBABE\uAB98\uFCDE\ubcda\uef4A\b\f\n\r\t``1~!@#$``%^&*()_+-=[]{}|;:',./<>?""`n: ""A key can be any string""`n`t},`n`t0.5 ,98.6`n,`n99.44`n,`n`n1066,`n1e1,`n0.1e1,`n1e-1,`n1e00,2e+00,2e-00`n,""rosebud""]"
+    ;Static test_file := "{`n`t""key_01_str"": ""String"",`n`t""key_02_num"": -1.05e+100,`n`t""key_03_true_false_null"":`n`t{`n`t`t""true"": true,`n`t`t""false"": false,`n`t`t""null"": null`n`t},`n`t""key_04_obj_num"":`n`t{`n`t`t""Integer"": 1234567890,`n`t`t""Integer negative"": -420,`n`t`t""Fraction/decimal"": 0.987654321,`n`t`t""Exponent"": 99e2,`n`t`t""Exponent negative"": -1e-999,`n`t`t""Exponent positive"": 11e+111,`n`t`t""Mix of all"": -3.14159e+100`n`t},`n`t""key_05_arr"":`n`t[`n`t`t""Value1"",`n`t`t""Value2"",`n`t`t""Value3""`n`t],`n`t""key_06_nested_obj_arr"":`n`t{`n`t`t""matrix"":`n`t`t[`n`t`t`t[`n`t`t`t`t0,`n`t`t`t`t1,`n`t`t`t`t2`n`t`t`t],`n`t`t`t[`n`t`t`t`t0,`n`t`t`t`t1,`n`t`t`t`t2`n`t`t`t],`n`t`t`t[`n`t`t`t`t0,`n`t`t`t`t1,`n`t`t`t`t2`n`t`t`t]`n`t`t],`n`t`t""person object example"":`n`t`t{`n`t`t`t""name"": ""0xB0BAFE77"",`n`t`t`t""job"": ""Professional Geek"",`n`t`t`t""faves"":`n`t`t`t{`n`t`t`t`t""color"":`n`t`t`t`t[`n`t`t`t`t`t""Black"",`n`t`t`t`t`t""White""`n`t`t`t`t],`n`t`t`t`t""food"":`n`t`t`t`t[`n`t`t`t`t`t""Pizza"",`n`t`t`t`t`t""Cheeseburger"",`n`t`t`t`t`t""Steak""`n`t`t`t`t],`n`t`t`t`t""vehicle"":`n`t`t`t`t{`n`t`t`t`t`t""make"": ""Subaru"",`n`t`t`t`t`t""model"": ""WRX STI"",`n`t`t`t`t`t""year"": 2018,`n`t`t`t`t`t""color"":`n`t`t`t`t`t{`n`t`t`t`t`t`t""Primary"": ""Black"",`n`t`t`t`t`t`t""Secondary"": ""Red""`n`t`t`t`t`t},`n`t`t`t`t`t""transmission"": ""M"",`n`t`t`t`t`t""msrp"": 26995.00`n`t`t`t`t}`n`t`t`t}`n`t`t}`n`t},`n`t""key_07_string_stuff"":`n`t{`n`t`t""ALPHA UPPER"": ""ABCDEFGHIJKLMNOPQRSTUVWXYZ"",`n`t`t""alpha lower"": ""abcdefghijklmnopqrstuvwxyz"",`n`t`t""Specials"": ""!@#$%^&*()_+-=[]{}<>,./?;':"",`n`t`t""Digits"": ""0123456789"",`n`t`t""0123456789"": ""Digits"",`n`t`t""key_case_check"": ""key_case_check lower"",`n`t`t""KEY_CASE_CHECK"": ""KEY_CASE_CHECK UPPER"",`n`t`t""Escape Characters"":`n`t`t{`n`t`t`t""ESC_01 Quotation Mark"": ""\"""",`n`t`t`t""ESC_02 Backslash/Reverse Solidus"": ""\\"",`n`t`t`t""ESC_03 Slash/Solidus (Not a mandatory escape)"": ""\/ and / work"",`n`t`t`t""ESC_04 Backspace"": ""\b"",`n`t`t`t""ESC_05 Formfeed"": ""\f"",`n`t`t`t""ESC_06 Linefeed"": ""\n"",`n`t`t`t""ESC_07 Carriage Return"": ""\r"",`n`t`t`t""ESC_08 Horizontal Tab"": ""\t"",`n`t`t`t""ESC_09 Unicode"": ""\u00AF\\_(\u30C4)_\/\u00AF"",`n`t`t`t""ESC_10 All"": ""\\\/\""\b\f\n\r\t\u0033"",`n`t`t`t""ESC_11 \/\t\u0033\t\/"": ""Key with Encodes""`n`t`t}`n`t},`n`t""key_08_text_of_json_text"": ""{\""object with 1 member\"": [\""array with 1 element\""]}"",`n`t""key_09_quotes"": ""&#34; \u0022 `%22 0x22 034 &#x22;"",`n`t""key_10_empty"":`n`t{`n`t`t""Empty Value"": """",`n`t`t"""": ""Empty Key"",`n`t`t""Empty Array"": [],`n`t`t""Empty Object"": {}`n`t},`n`t""key_11_spacing"":`n`t{`n`t`t""compact"":[1,2,3,4,""a"",""b"",""c"",""d""],`n`t`t""expanded"":`n`t`t[`n`t`t`t""This "",                      ""is""  `t`t`t          ,""considered""`n`t`t`t`t`t`t,""valid "",`t`t`t`t    ""spacing.\n"",`n`t`t`t""JSON "",`n`t`t`t`t""only "",`n`t`t`t`t`t""cares "",`n`t`t`t`t`t`t""about "",`n`t`t`t`t`t`t`t""whitespace "",`n`t`t`t`t`t`t`t`t""inside "",`n`t`t`t`t`t`t`t`t`t""of"",`n`t`t`t`t`t`t`t`t`t`t""strings.""`n`t`t`t`t`t`t`t`t`t`t`t],`n`t`t""valid JSON whitespace"":`n`t`t`t`t`t[""Space"",`n`t`t`t`t""Linefeed"",`n`t`t`t""Carriage Return"",`n`t`t""Horizontal Tab""]`n`t},`n`t""key_12_code_comments"": [""C"", ""REM"", ""::"", ""NB."", ""#"", ""%"", ""//"", ""'"", ""!"", "";"", ""--"", ""*"", ""||"", ""*>""]`n}"
+    
     ; RegEx Bank (Kudos to mateon1 at regex101.com for creating most of these regex patterns)
     Static rgx	    :=  {"k"    : "(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))[ ]*:"
                         ,"s"    : "(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))"
@@ -173,6 +178,29 @@ Class JSON_AHK
                         ,"`r"   :True
                         ,"`n"   :True }
     
+    test_settings(){
+        ; JSON settings
+        this.indent_unit          := "`t"
+        this.ob_new_line          := False
+        this.ob_val_inline        := False
+        this.cb_new_line          := True
+        this.cb_val_inline        := False
+        
+        this.arr_val_same         := False
+        this.obj_val_same         := False
+        
+        this.no_empty_brace_ws    := True
+        this.array_one_line       := False
+        this.add_quotes           := False
+        this.no_braces            := False
+        
+        ; Obj settings
+        this.strip_quotes         := False
+        this.dupe_key_check       := True
+        
+        Return
+    }
+    
     test() {
         ; IfElse vs ternary,    25 MB file,         5 iterations
         ; IfElse                to_ahk:             to_json: 
@@ -180,28 +208,27 @@ Class JSON_AHK
         
         obj     := {}
         jtxt    := json_ahk.test_file
-        jtxt    := json_ahk.import()
+        ;jtxt    := json_ahk.import()
         i       := 1
         
+        this.test_settings()
         ;this.array_one_line := True
         
         this.qpx(1)
         Loop, % i
             obj := json_ahk.to_ahk(jtxt)
         t1 := this.qpx(0)
-        MsgBox, % "to_ahk done. Time: " t1/i " sec"
         
         this.qpx(1)
         Loop, % i
             json := json_ahk.to_json(obj)
         t2 := this.qpx(0)
-        MsgBox, % (Clipboard := json)
-        MsgBox, % "to_json done. Time: " t2/i " sec"
-        
         Clipboard := json
+        
         MsgBox, % "[qpx]to_ahk convert time: " t1/i " sec"
                 . "`n[qpx]to_json convert time: " t2/i " sec"
-        
+                . "`nJSON on clipboard."
+                . "`n`n" json
         Return
     }
     
@@ -240,17 +267,6 @@ Class JSON_AHK
         Return
     }
     
-    ; Convert AHK object to JSON string
-    to_json(obj, ind:="") {
-        ; Settings for forward slash escaping
-        this.esc_slash_search := (this.esc_slash ? "/" : "")
-        this.esc_slash_replace := (this.esc_slash ? "\/" : "")
-        
-        Return IsObject(obj)
-            ? Trim(this.to_json_extract(obj, this.is_array(obj)), "`n")
-            : this.basic_error("You did not supply a valid object or array")
-    }
-    
     preview(save:=0) {
         txt := this.to_json(this.to_ahk(this.test_file))
         save ? Clipboard := txt : ""
@@ -261,62 +277,76 @@ Class JSON_AHK
         Return txt
     }
     
+    ; Convert AHK object to JSON string
+    to_json(obj, ind:="") {
+        ; User settings for forward slash escaping
+        this.esc_slash_search := (this.esc_slash ? "/" : "")
+        this.esc_slash_replace := (this.esc_slash ? "\/" : "")
+        
+        IsObject(obj)
+            ? str := this.to_json_extract(obj, this.is_array(obj))
+            : this.basic_error("You did not supply a valid object or array")
+        
+        ; Clean up outside of JSON
+        str := Trim(str, "`n`t`r ")
+        
+        ; Fix last brace if cb_val_inline is used
+        (this.cb_new_line && this.cb_val_inline)
+            ? str := RegExReplace(str, "^(.*?)[ |\t]*(\}|\])$", "$1$2")
+            : ""
+        
+        Return str
+    }
+    
     ; Recursively extracts values from an object
     ; type = Incoming object type: 0 for object, 1 for array
-    ; Indent is set by the json_ahk.indent_unit property
-    ; It should be left blank as recursion sets indent depth
-    to_json_extract(obj, type, ind:="") {
+    ; str is the current line of the JSON file. Doing it this way allows
+    ; for more (and easier) customization.
+    ; ind is set by the function and incremented by the .indent_unit property
+    to_json_extract(obj, type, str, ind:="") {
         Local
         
-        ;;;;;;;;;;;;;;;;;;stopped here i'm working on the property formatting
-        ind_big := ind . this.indent_unit                                   		; Set big indent
-        str     := "`n"
-                . ind
-                . (type ? "[" : "{")
+        ; Set big indent
+        ind_big := ind . this.indent_unit
         
         For key, value in obj
-            ; Add value prefix
-            str .= "`n"
-                    . ind_big
-                    . (type
-                        ? "" 
-                        : this.string_encode(key) ": ")
-                ; If value is an object, extract it
-                . (IsObject(value)
-                    ? this.to_json_extract(value, this.is_array(value), ind_big)
-                    ; Otherwise, validate value
-                    : (v := this.is_val[SubStr(value,1,1)])
-                        ; If valid and is string, encode string and add
-                        ? (v == "s") ? this.string_encode(value)
-                        ; If not string, add value
-                        : value
-                    ; If regex validation fails, notify user
-                    ; This will be replaced with an error finder later
-                    : this.basic_error("to_json error!`nvalue: " value "`nv: " v "`nstr: " str))
-                . ","
+        {
+            If IsObject(value)
+            {
+                
+            }
+            Else
+            {
+                str .= "`n" ind_big (type ? "" : this.string_encode(key) ": ")
+                    
+            }
+            str .= ","
+        }
         
         str := RTrim(str, ",")   							; Strip off last comma
-            . "`n"
-            . ind
-            . (type ? "]" : "}")
-        ;If (type && this.array_one_line)						; Array elements on 1 line check
-        ;    str .= "]"									; If yes, cap off with bracket
-        ;Else {
-        ;    str .= (this.cb_new_line							; Otherwise check if closing brace is on new line
-        ;        ? "`n" (this.cb_val_inline ? ind_big : ind)		; Check if brace should be indented to value
-        ;        : "" )											; Otherwise do nothing
-        ;    . (this.no_braces ? "" : type ? "]" : "}")		; Add appropriate closing brace
-        ;}
-        
+            . (this.cb_new_line
+                ? "`n" . (this.cb_val_inline
+                    ? ind_big
+                    : ind)
+                : " ")
+            . (this.no_braces ? "" 
+                : type ? "]"
+                : "}")
+            
         ; Empty object checker
         ;; In AHK v1, all arrays are objects so there is no way to distinguish between an empty array and empty object
         ;; When constructing JSON output, empty arrays will always show as empty objects
-        ;; Can I just used array.Length()?
         If (this.no_empty_brace_ws && RegExMatch(str, this.rgx.e))
-            Return this.no_braces ? ""
-                : (this.ob_new_line ? "`n" ind : "") . "{}"
-        Else 
-            Return str
+            str := (this.empty_arr_same_line ? ""
+                    : this.ob_new_line 
+                        ? "`n"
+                        . (this.cb_val_inline 
+                            ? ind_big
+                            : ind)
+                        : "" )
+                    . "{}"
+        
+        Return str
     }
     
     to_json_validate() {
@@ -363,6 +393,9 @@ Class JSON_AHK
         max := StrLen(txt)
         in_str := False
         
+        ; Try doing a regex match for strings
+        ; Everything up to that index is non-string.
+        ; Has to be faster than this current way.
         While (i < max)
         {
             n := InStr(txt, """",, i)
@@ -510,14 +543,14 @@ Class JSON_AHK
         ,txt:= StrReplace(txt, "\t", "`t")      ; Tab
         ,txt:= StrReplace(txt, "\/", "/")       ; Slash / Solidus
         ,txt:= StrReplace(txt, "\""", """")     ; Double Quotes
-        Return StrReplace(txt, "\\", "\")       ; Reverse Slash / Solidus
+        Return StrReplace(txt, "\\", "\")       ; Reverse Slash / Solidus (must be done last)
     }
     
     ; Escapes necessary chars from a string
     string_encode(txt) {
         Local
         
-        txt  := StrReplace(SubStr(txt,2,-1) ,"\"  ,"\\" )   ; Encode backslashes first
+        txt  := StrReplace(SubStr(txt,2,-1) ,"\"  ,"\\" )   ; Backslashes (must be done first)
         ,txt := StrReplace(txt ,"`b" ,"\b" )                ; Backspace
         ,txt := StrReplace(txt ,"`f" ,"\f" )                ; Formfeed
         ,txt := StrReplace(txt ,"`n" ,"\n" )                ; Linefeed
@@ -710,3 +743,258 @@ Class JSON_AHK
         Return (N && X=N) ? (X:=X-1)<<64 : (N=0 && (R:=A/X/F)) ? (R + (A:=P:=X:=0)) : 1
     }
 }
+
+
+
+
+    ; Table method I tried that didn't work as well as hoped
+    ;~ json_table(json) {
+        ;~ Local
+        
+        ;~ obj		:= {}            ; Converted object
+        ;~ ,json_valid	:= {}        ; JSON Validation Table
+        ;~ ,i		:= 0             ; Character index
+        ;~ ,start	:= 0             ; Value start
+        ;~ ,char	:= ""            ; Current char
+        ;~ ,last_s	:= ""
+        ;~ ,state	:= "BG"          ; Validation state
+        ;~ ,get_key:= False         ; True if capturing string for object key
+        ;~ ,max	:= StrLen(json)  ; Total chars in JSON string (Loop sentry)
+        ;~ ,path	:= []            ; Tracks value paths
+        ;~ ,path_t	:= []            ; Tracks if path is array or object
+        
+        ;~ ; Character token converter
+        ;~ char_con := {" ":" "  ,"`r":"w"  ,"`n":"w"  ,"`t":"w"  ,"""":"q" ; Whitespace and string
+                    ;~ ,"0":"z"  ,"1" :"#"  ,"2" :"#"  ,"3" :"#"  ,"4" :"#" ; Number int
+                    ;~ ,"5":"#"  ,"6" :"#"  ,"7" :"#"  ,"8" :"#"  ,"9" :"#" ; Number int
+                    ;~ ,0  :"z"  ,1   :"#"  ,2   :"#"  ,3   :"#"  ,4   :"#" ; Number int
+                    ;~ ,5  :"#"  ,6   :"#"  ,7   :"#"  ,8   :"#"  ,9   :"#" ; Number int
+                    ;~ ,"+":"+"  ,"-" :"-"  ,"." :"."  ,"c" :"x"  ,"d" :"x" ; Number symbols and CD hex
+                    ;~ ,"[":"["  ,"]" :"]"  ,"{" :"{"  ,"}" :"}"            ; Arrays and objects
+                    ;~ ,",":","  ,":" :":"  ,"\" :"\"  ,"/" :"/" }          ; Separators and escape chars
+        
+        ;~ ; Case sensitive character checker
+        ;~ case_check := {"a":True ,"b":True ,"e":True ,"f":True ,"l":True
+                      ;~ ,"n":True ,"r":True ,"s":True ,"t":True ,"u":True }
+        
+        ;~ ; Case sensitive conversion via char code
+        ;~ case_con := {65 :"x"   ; A - hex
+                    ;~ ,66 :"x"   ; B - hex
+                    ;~ ,69 :"^"   ; E - number Exp, hex
+                    ;~ ,70 :"x"   ; F - hex
+                    ;~ ,76 :"*"   ; L - NA
+                    ;~ ,78 :"*"   ; N - NA
+                    ;~ ,82 :"*"   ; R - NA
+                    ;~ ,83 :"*"   ; S - NA
+                    ;~ ,84 :"*"   ; T - NA
+                    ;~ ,85 :"*"   ; U - NA
+                    ;~ ,97 :"a"   ; a - false, hex
+                    ;~ ,98 :"b"   ; b - backspace
+                    ;~ ,101:"e"   ; e - number exp, true, false, hex
+                    ;~ ,102:"f"   ; f - false, formfeed, hex
+                    ;~ ,108:"l"   ; l - false
+                    ;~ ,110:"n"   ; n - null, linefeed
+                    ;~ ,114:"r"   ; r - true, carriage return
+                    ;~ ,115:"s"   ; s - false
+                    ;~ ,116:"t"   ; t - true, horizontal tab
+                    ;~ ,117:"u" } ; u - true, null, unicode
+        
+        ;~ ; Sets state when a value is started
+        ;~ value_state := {"-" : "NN"    ; Number negative
+                       ;~ ,"#" : "NI"    ; Number integer
+                       ;~ ,"z" : "ND"    ; Number decimal
+                       ;~ ,"q" : "ST"    ; String
+                       ;~ ,"t" : "T1"    ; true
+                       ;~ ,"f" : "F1"    ; false
+                       ;~ ,"n" : "N1" }  ; null
+        
+        ;~ ; Sets state when a value ends
+        ;~ value_end_state := {",":9       ; Get next value
+                           ;~ ,"]":6       ; End of array
+                           ;~ ,"}":6       ; End of object
+                           ;~ ,"q":"CC"    ; Find next step after string
+                           ;~ ," ":"CC"    ; Find next step after space
+                           ;~ ,"w":"CC" }  ; Find next step after whitespace
+        
+        ;~ is_num := {"NI" : True
+                  ;~ ,"ND" : True
+                  ;~ ,"D2" : True
+                  ;~ ,"E2" : True}
+        
+        ;~ ;1 - First Array
+        ;~ ;2 - First Object
+        ;~ ;3 - New Object
+        ;~ ;4 - Empty Object
+        ;~ ;5 - New Array
+        ;~ ;6 - Array/Object End
+        ;~ ;7 - Value End
+        ;~ ;8 - Value Start
+        ;~ ;9 - Next Value
+        
+        ;~ ; JSON file validation table
+        ;~ ;                 spc       ws       {        }        [        ]        ,        :        "        \        /        +        -        .        z        #        x        a        b        e        ^        f        l        n        s        t        r        u       ALL      
+        ;~ json_valid.BG := {" ":"BG","w":"BG","{":"2" ,"" :""  ,"[":"1" ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        
+        ;~ json_valid.OB := {" ":"OB","w":"OB","" :""  ,"}":4   ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"q":8   ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.OC := {" ":"OC","w":"OC","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,":":"VL","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.AR := {" ":"AR","w":"AR","{":3   ,"" :""  ,"[":5   ,"]":6   ,"" :""  ,"" :""  ,"q":8   ,"" :""  ,"" :""  ,"" :""  ,"-":8   ,"" :""  ,"z":8   ,"#":8   ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"f":8   ,"" :""  ,"n":8   ,"" :""  ,"t":8   ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.VL := {" ":"VL","w":"VL","{":3   ,"" :""  ,"[":5   ,"" :""  ,"" :""  ,"" :""  ,"q":8   ,"" :""  ,"" :""  ,"" :""  ,"-":8   ,"" :""  ,"z":8   ,"#":8   ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"f":8   ,"" :""  ,"n":8   ,"" :""  ,"t":8   ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.CC := {" ":"CC","w":"CC","" :""  ,"}":6   ,"" :""  ,"]":6   ,",":9   ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ ;                 spc       ws       {        }        [        ]        ,        :        "        \        /        +        -        .        0        #        x        a        b        e        ^        f        l        n        s        t        r        u       ALL      
+        ;~ json_valid.ST := {" ":"ST","" :""  ,"{":"ST","}":"ST","[":"ST","]":"ST",",":"ST",":":"ST","q":7   ,"\":"ES","/":"ST","+":"ST","-":"ST",".":"ST","z":"ST","#":"ST","x":"ST","a":"ST","b":"ST","e":"ST","^":"ST","f":"ST","l":"ST","n":"ST","s":"ST","t":"ST","r":"ST","u":"ST","*":"ST" }
+        ;~ json_valid.ES := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"q":"ST","\":"ST","/":"ST","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"b":"ST","" :""  ,"" :""  ,"f":"ST","" :""  ,"n":"ST","" :""  ,"t":"ST","r":"ST","u":"U1","" :""   }
+        ;~ json_valid.U1 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"z":"U2","#":"U2","x":"U2","a":"U2","b":"U2","e":"U2","^":"U2","f":"U2","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.U2 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"z":"U3","#":"U3","x":"U3","a":"U3","b":"U3","e":"U3","^":"U3","f":"U3","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.U3 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"z":"U4","#":"U4","x":"U4","a":"U4","b":"U4","e":"U4","^":"U4","f":"U4","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.U4 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"z":"ST","#":"ST","x":"ST","a":"ST","b":"ST","e":"ST","^":"ST","f":"ST","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ ;                 spc       ws       {        }        [        ]        ,        :        "        \        /        +        -        .        0        #        x        a        b        e        ^        f        l        n        s        t        r        u       ALL      
+        ;~ ;" " = CC, "w" = CC, ","
+        ;~ json_valid.NN := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"z":"ND","#":"NI","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.NI := {" ":7   ,"w":7   ,"" :""  ,"}":7   ,"" :""  ,"]":7   ,",":7   ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,".":"D1","z":"NI","#":"NI","" :""  ,"" :""  ,"" :""  ,"e":"NE","^":"NE","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.ND := {" ":7   ,"w":7   ,"" :""  ,"}":7   ,"" :""  ,"]":7   ,",":7   ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,".":"D1","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"e":"NE","^":"NE","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.D1 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"z":"D2","#":"D2","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.D2 := {" ":7   ,"w":7   ,"" :""  ,"}":7   ,"" :""  ,"]":7   ,",":7   ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"z":"D2","#":"D2","" :""  ,"" :""  ,"" :""  ,"e":"NE","^":"NE","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.NE := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"+":"E1","-":"E1","" :""  ,"z":"E2","#":"E2","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.E1 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"z":"E2","#":"E2","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.E2 := {" ":7   ,"w":7   ,"" :""  ,"}":7   ,"" :""  ,"]":7   ,",":7   ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"z":"E2","#":"E2","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ ;                 spc       ws       {        }        [        ]        ,        :        "        \        /        +        -        .        0        #        x        a        b        e        ^        f        l        n        s        t        r        u       ALL      
+        ;~ json_valid.T1 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"r":"T2","" :""  ,"" :""   }
+        ;~ json_valid.T2 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"u":"T3","" :""   }
+        ;~ json_valid.T3 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"e":7   ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.F1 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"a":"F2","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.F2 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"l":"F3","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.F3 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"s":"F4","" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.F4 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"e":7   ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.N1 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"u":"N2","" :""   }
+        ;~ json_valid.N2 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"l":"N3","" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ json_valid.N3 := {"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"l":7   ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""  ,"" :""   }
+        ;~ ;                 spc       ws       {        }        [        ]        ,        :        "        \        /        +        -        .        0        #        x        a        b        e        ^        f        l        n        s        t        r        u       ALL      
+        
+        ;~ While (i < max) {
+            ;~ (char_con[(char := SubStr(json, ++i, 1))] == "")  ; Get next char and check if char_con fails
+                ;~ ? (case_check[char])                          ; If char is one of the case sensitive letters
+                    ;~ ? char := case_con[Asc(char)]             ; Assign char using its key code
+                ;~ : char := "*"                                 ; Otherwise, assign char * (any character)
+            ;~ : char := char_con[char]                          ; If char_con passed, assign correct symbol
+            
+            ;~ state := json_valid[(last_s := state)][char]           ; Update state using JSON validation table
+            
+            ;~ ; 1 - First Array
+            ;~ If (state == 1)
+                ;~ state		:= "AR"
+                ;~ ,obj		:= []
+                ;~ ,path.Push(1)
+                ;~ ,path_t.Push(True)
+            ;~ ; 2 - First Object
+            ;~ Else If (state == 2)
+                ;~ state		:= "OB"
+                ;~ ,obj		:= {}
+                ;~ ,get_key	:= True
+            ;~ ; 3 - New Object
+            ;~ Else If (state == 3)
+                ;~ state		:= "OB"
+                ;~ ,obj[path*]	:= {}
+                ;~ ,get_key	:= True
+            ;~ ; 4 - Empty Object
+            ;~ Else If (state == 4)
+                ;~ state		:= "CC"
+                ;~ ,get_key	:= False
+            ;~ ; 5 - New Array
+            ;~ Else If (state == 5)
+                ;~ state		:= "AR"
+                ;~ ,obj[path*]	:= []
+                ;~ ,path.Push(1)
+                ;~ ,path_t.Push(True)
+            ;~ ; 6 - Array/Object End
+            ;~ Else If (state == 6)
+                ;~ state		:= "CC"
+                ;~ ,path.Pop()
+                ;~ ,path_t.Pop()
+            ;~ ; 7 - Non-Number End
+            ;~ Else If (state == 7)
+                ;~ If (get_key)
+                    ;~ state 		:= "OC"
+                    ;~ ,get_key	:= False
+                    ;~ ;,this.msg("key: >" SubStr(json, start, i-start+1) "<")
+                    ;~ ,path.Push(SubStr(json, start, i-start+1))
+                    ;~ ,path_t.Push(False)
+                ;~ Else If (is_num[last_s])
+                    ;~ state := "CC"
+                    ;~ ;,this.msg("number: >" SubStr(json, start, i-start) "<")
+                    ;~ ,obj[path*]	:= SubStr(json, start, i-start)
+                    ;~ ,i--
+                ;~ Else
+                    ;~ state 		:= "CC"
+                    ;~ ;,this.msg("Value: >" SubStr(json, start, i-start+1) "<")
+                    ;~ ,obj[path*]	:= SubStr(json, start, i-start+1)
+            ;~ ; 8 - Value Start
+            ;~ Else If (state == 8)
+                ;~ state	:= value_state[char]
+                ;~ ,start	:= i
+            ;~ ; 9 - Next Value
+            ;~ Else If (state == 9)
+                ;~ If path_t[path_t.MaxIndex()]
+                    ;~ state	:= "VL"
+                    ;~ ,path[path.MaxIndex()]++
+                ;~ Else
+                    ;~ state		:= "OB"
+                    ;~ ,get_key	:= True
+                    ;~ ,path.Pop()
+                    ;~ ,path_t.pop()
+            ;~ ; Error - Blank state means an error occurred
+            ;~ Else If (state == "")
+                ;~ this.json_valid_error(json, i, last_s)
+            
+        ;~ }
+        
+        ;~ Return
+        
+        ; Scrapped number indexed table and converter
+        ;~ ; Character token converter
+        ;~ char_con := {" ":1   ,"`r":2   ,"`n":2   ,"`t":2   ,"""":9             ; Whitespace and string
+                    ;~ ,"{":3   ,"}" :4   ,"[":5    ,"]" :6   ,"," :7   ,":":8    ; Arrays and objects
+                    ;~ ,"0":15  ,"1" :16  ,"2" :16  ,"3" :16  ,"4" :16            ; Number int
+                    ;~ ,"5":16  ,"6" :16  ,"7" :16  ,"8" :16  ,"9" :16            ; Number int
+                    ;~ ,0  :15  ,1   :16  ,2   :16  ,3   :16  ,4   :16            ; Number int
+                    ;~ ,5  :16  ,6   :16  ,7   :16  ,8   :16  ,9   :16            ; Number int
+                    ;~ ,"c":17  ,"d" :17  ,"C" :17  ,"D" :17                      ; Number hex
+                    ;~ ,"+":12  ,"-" :13  ,"." :14  ,"\" :10  ,"/" :11            ; Number symbols and escape chars
+                    ;~ ,"t":25  ,"r" :26  ,"u" :27  ,"l" :23  ,"s" :24  ,"n": } ; true false null
+        ;~ ; Necessary capital letter check b/c AHK object keys aren't case sensitive
+        ;~ char_cap := {65 :17 ,66 :17 ,69 :21 ,70 :17  ; 65  = A, 66  = B, 69  = E, 70  = F
+                    ;~ ,97 :18 ,98 :19 ,101:20 ,102:22  ; 97  = a, 98  = b, 101 = e, 102 = f
+                    ;~ ,116:25 ,114:26 ,117:27          ; 116 = t, 114 = r, 117 = u
+                    ;~ ,108:23 ,115:24 ,110:28 }        ; 108 = l, 115 = s, 110 = n
+        
+        ;~ ;             spc  ws   {    }    [    ]    ,    :    "    \    /    +    -    .    0    #    x    a    b    e    E    f    l    s    t    r    u    n    ALL
+        ;~ ;             1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29
+        ;~ json_valid.BG := ["BG","BG","ON",""  ,"PA",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.ON := ["ON","ON",""  ,"OK",""  ,""  ,""  ,""  ,"ST",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.AN := ["AN","AN","ON",""  ,"AN",""  ,""  ,""  ,"ST",""  ,""  ,""  ,"NM",""  ,"NM","NM",""  ,""  ,""  ,""  ,""  ,"F1",""  ,""  ,"T1",""  ,""  ,"N1",""   ]
+        ;~ json_valid.VL := ["VL","VL","ON",""  ,"AN",""  ,""  ,""  ,"ST",""  ,""  ,""  ,"NN",""  ,"ND","NI",""  ,""  ,""  ,""  ,""  ,"F1",""  ,""  ,"T1",""  ,""  ,"N1",""   ]
+        ;~ json_valid.OK := ["OK","OK",""  ,"OE",""  ,"AE",""  ,""  ,"ST",""  ,""  ,""  ,"NM",""  ,"NM","NM",""  ,""  ,""  ,""  ,""  ,"F1",""  ,""  ,"T1",""  ,""  ,"N1",""   ]
+        ;~ json_valid.ST := ["ST",""  ,"ST","ST","ST","ST","ST","ST","OK","SE","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST","ST" ]
+        ;~ json_valid.ES := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ST","ST","ST",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ST",""  ,""  ,"ST",""  ,""  ,"ST","ST","U1","ST",""   ]
+        ;~ json_valid.U1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"U2","U2","U2","U2","U2","U2","U2","U2",""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.U2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"U3","U3","U3","U3","U3","U3","U3","U3",""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.U3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"U4","U4","U4","U4","U4","U4","U4","U4",""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.U4 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ST","ST","ST","ST","ST","ST","ST","ST",""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.NN := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"ND","NI",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.NI := ["OK","OK",""  ,"OK",""  ,"OK","OK",""  ,""  ,""  ,""  ,""  ,""  ,"D1","NI","NI",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.ND := ["OK","OK",""  ,"OK",""  ,"OK","OK",""  ,""  ,""  ,""  ,""  ,""  ,"D1",""  ,""  ,""  ,""  ,""  ,"NE","NE",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.D1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"D2","D2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.D2 := ["OK","OK",""  ,"OK",""  ,"OK","OK",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"NE","NE",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.NE := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E1","E1",""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.E1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.E2 := ["OK","OK",""  ,"OK",""  ,"OK","OK",""  ,""  ,""  ,""  ,""  ,""  ,""  ,"E2","E2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.T1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"T2",""  ,""  ,""   ]
+        ;~ json_valid.T2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"T3",""  ,""   ]
+        ;~ json_valid.T3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"OK",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.F1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F2",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.F2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F3",""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.F3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"F4",""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.F4 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"OK",""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.N1 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N2",""  ,""   ]
+        ;~ json_valid.N2 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N3",""  ,""  ,""  ,""  ,""  ,""   ]
+        ;~ json_valid.N3 := [""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,""  ,"N4",""  ,""  ,""  ,""  ,""  ,""   ]
+    ;~ }
