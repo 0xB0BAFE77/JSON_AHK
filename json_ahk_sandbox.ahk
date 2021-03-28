@@ -25,7 +25,7 @@ Class JSON_AHK
     ;	  If the first index is 1 and all subsequent indexes are 1 higher than the previous, it's considered an array
     ;     Because of this, blank arrays [] will always export as blank objects {}.
     
-    ; Currently working on:
+    ; Currently working on/to-do:
     ;   - Stringfy doesn't work. Rewrite needed.
     ;   - Error checking still needs to be implemented
     ;     This should be able to the user EXACTLY where the error is and why it's an error.
@@ -141,6 +141,8 @@ Class JSON_AHK
     
     Static arr_val_same         := False    ; False | First value of an array appears on the same line as the brace
     Static obj_val_same         := False    ; False | First value of an object appears on the same line as the brace
+    
+    
     
     Static no_empty_brace_ws    := True     ; True  | Remove whitespace from empty braces
     Static esc_slash            := False    ; False | Add the optional escape to forward slashes/solidus
@@ -303,28 +305,47 @@ Class JSON_AHK
     ; str is the current line of the JSON file. Doing it this way allows
     ; for more (and easier) customization.
     ; ind is set by the function and incremented by the .indent_unit property
-    to_json_extract(obj, type, str, ind:="") {
+    to_json_extract(obj, type, ind:="") {
         Local
         
         ; Set big indent
         ind_big := ind . this.indent_unit
+        str := "`n"                                         ;
+            . ind
+            . (type ? "[" : "{")
         
         For key, value in obj
         {
             If IsObject(value)
             {
+                (type)
+                    ? ""
+                    : str .= "`n"
+                        . ind_big
+                        . this.string_encode(key) ": "
                 
+                str .= this.to_json_extract(value
+                    ,this.is_array(value)
+                    ,ind_big)
             }
             Else
             {
-                str .= "`n" ind_big (type ? "" : this.string_encode(key) ": ")
-                    
+                str .= "`n" 
+                    . ind_big
+                    . (type ? "" : this.string_encode(key) ": ")
+                    . ((v := this.is_val[SubStr(value, 1, 1)]) 
+                        && RegExMatch(str, this.rgx[v]))
+                        ? v == "s"
+                            ? this.string_encode(value)
+                            : value
+                        : this.basic_error("This is not a valid value:`n" value)
+                    . value
             }
             str .= ","
         }
         
         str := RTrim(str, ",")   							; Strip off last comma
-            . (this.cb_new_line
+            . (this.cb_new_line                             ; Build end of object
                 ? "`n" . (this.cb_val_inline
                     ? ind_big
                     : ind)
@@ -533,31 +554,38 @@ Class JSON_AHK
                     . SubStr(this.json, this.i+1, max)
     }
     
+    ; Converts escaped characters to their actual values
     string_decode(txt) {
         Local
+        If !InStr(txt, "\")
+            Return txt
         
-        txt := StrReplace(txt, "\b", "`b")      ; Backspace
-        ,txt:= StrReplace(txt, "\f", "`f")      ; Formfeed
-        ,txt:= StrReplace(txt, "\n", "`n")      ; Linefeed
-        ,txt:= StrReplace(txt, "\r", "`r")      ; Carriage Return
-        ,txt:= StrReplace(txt, "\t", "`t")      ; Tab
-        ,txt:= StrReplace(txt, "\/", "/")       ; Slash / Solidus
-        ,txt:= StrReplace(txt, "\""", """")     ; Double Quotes
-        Return StrReplace(txt, "\\", "\")       ; Reverse Slash / Solidus (must be done last)
+        txt	 := StrReplace(txt, "\\", "\")      ; Reverse Slash / Solidus
+        ,txt := StrReplace(txt, "\b", "`b")     ; Backspace
+        ,txt := StrReplace(txt, "\f", "`f")     ; Formfeed
+        ,txt := StrReplace(txt, "\n", "`n")     ; Linefeed
+        ,txt := StrReplace(txt, "\r", "`r")     ; Carriage Return
+        ,txt := StrReplace(txt, "\t", "`t")     ; Tab
+        ,txt := StrReplace(txt, "\/", "/")      ; Slash / Solidus
+        ,txt := StrReplace(txt, "\""", """")	; Double Quotes	
+        Return txt
     }
     
-    ; Escapes necessary chars from a string
+    ; Converts necessary characters to their escaped version
     string_encode(txt) {
         Local
         
-        txt  := StrReplace(SubStr(txt,2,-1) ,"\"  ,"\\" )   ; Backslashes (must be done first)
-        ,txt := StrReplace(txt ,"`b" ,"\b" )                ; Backspace
-        ,txt := StrReplace(txt ,"`f" ,"\f" )                ; Formfeed
-        ,txt := StrReplace(txt ,"`n" ,"\n" )                ; Linefeed
-        ,txt := StrReplace(txt ,"`r" ,"\r" )                ; Carriage Return
-        ,txt := StrReplace(txt ,"`t" ,"\t" )                ; Tab (Horizontal)
-        ,txt := StrReplace(txt ,"""" ,"\""")                ; Quotation Marks
-        Return """" StrReplace(txt ,"\\u" ,"\u") """"       ; Fix Unicode Escapes
+        txt  := StrReplace(txt ,"\"  ,"\\" )    ; Backslashes
+        ,txt := StrReplace(txt ,"`b" ,"\b" )    ; Backspace
+        ,txt := StrReplace(txt ,"`f" ,"\f" )    ; Formfeed
+        ,txt := StrReplace(txt ,"`n" ,"\n" )    ; Linefeed
+        ,txt := StrReplace(txt ,"`r" ,"\r" )    ; Carriage Return
+        ,txt := StrReplace(txt ,"`t" ,"\t" )    ; Tab (Horizontal)
+        ,txt := StrReplace(txt ,"""" ,"\""")    ; Quotation Marks
+        ,txt := StrReplace(txt ,"\\u" ,"\u")    ; Fix Unicode Escapes
+        Return StrReplace(txt                   ; Optional slash / solidus encoding
+            , this.esc_slash_search
+            , this.esc_slash_replace)
     }
     
     ; Default settings for json_ahk
