@@ -180,10 +180,10 @@ Class JSON_AHK
                         ,"`r"   :True
                         ,"`n"   :True }
     
-    test_settings(){
+    test_settings() {
         ; JSON settings
         this.indent_unit          := "`t"
-        this.ob_new_line          := False
+        this.ob_new_line          := True
         this.ob_val_inline        := False
         this.cb_new_line          := True
         this.cb_val_inline        := False
@@ -305,67 +305,67 @@ Class JSON_AHK
     ; str is the current line of the JSON file. Doing it this way allows
     ; for more (and easier) customization.
     ; ind is set by the function and incremented by the .indent_unit property
-    to_json_extract(obj, type, ind:="") {
+    to_json_extract(obj, type, ind:="", o_key:="") {
         Local
-        
         ; Set big indent
         ind_big := ind . this.indent_unit
-        str := "`n"                                         ;
-            . ind
+        
+        str := (o_key == ""
+                ? ""
+                : "`n" ind )
             . (type ? "[" : "{")
+            . "`n"
         
         For key, value in obj
         {
             If IsObject(value)
             {
-                (type)
-                    ? ""
-                    : str .= "`n"
-                        . ind_big
-                        . this.string_encode(key) ": "
-                
                 str .= this.to_json_extract(value
-                    ,this.is_array(value)
-                    ,ind_big)
+                        ,this.is_array(value)
+                        ,ind_big
+                        ,(type ? "" : this.string_encode(key) ": "))
             }
             Else
             {
-                str .= "`n" 
-                    . ind_big
+                str .= ind_big
                     . (type ? "" : this.string_encode(key) ": ")
-                    . ((v := this.is_val[SubStr(value, 1, 1)]) 
-                        && RegExMatch(str, this.rgx[v]))
+                    . ((v := this.is_val[SubStr(value, 1, 1)])
                         ? v == "s"
                             ? this.string_encode(value)
                             : value
-                        : this.basic_error("This is not a valid value:`n" value)
-                    . value
+                        : this.basic_error("This is not a valid value:`n" value "`ntype: " v))
+                    ;~ . (RegExMatch(value, this.rgx[])
+                        ;~ ? v == "s"
+                            ;~ ? this.string_encode(value)
+                            ;~ : value
+                        ;~ : this.basic_error("This is not a valid value:`n" value "`ntype: " v))
             }
             str .= ","
+                . "`n"
         }
         
-        str := RTrim(str, ",")   							; Strip off last comma
-            . (this.cb_new_line                             ; Build end of object
+        str := RTrim(str, ",`n")                    ; Strip off last comma and linefeed
+            . (this.cb_new_line                     ; Build end of object
                 ? "`n" . (this.cb_val_inline
                     ? ind_big
                     : ind)
-                : " ")
-            . (this.no_braces ? "" 
+                : "")
+            . (this.no_braces ? ""
                 : type ? "]"
                 : "}")
             
         ; Empty object checker
         ;; In AHK v1, all arrays are objects so there is no way to distinguish between an empty array and empty object
         ;; When constructing JSON output, empty arrays will always show as empty objects
-        If (this.no_empty_brace_ws && RegExMatch(str, this.rgx.e))
-            str := (this.empty_arr_same_line ? ""
-                    : this.ob_new_line 
-                        ? "`n"
-                        . (this.cb_val_inline 
-                            ? ind_big
-                            : ind)
-                        : "" )
-                    . "{}"
+        ;~ If (this.no_empty_brace_ws && RegExMatch(str, this.rgx.e))
+            ;~ str := (this.empty_arr_same_line ? ""
+                    ;~ : this.ob_new_line 
+                        ;~ ? "`n"
+                        ;~ . (this.cb_val_inline 
+                            ;~ ? ind_big
+                            ;~ : ind)
+                        ;~ : "" )
+                    ;~ . "{}"
         
         Return str
     }
@@ -498,8 +498,10 @@ Class JSON_AHK
                 ; There is something off with the key regex match...
                 ; Also, for consideration:
                 ; Move the key check out of here, use the string regex in the value section
-                ; Would need to have a variable to track if key or string.
-                ; Will need a colon token checker, too.
+                ; Would need to have a variable to track if string is key or value.
+                ; Will need a colon token checker, too. Which adds another section
+                ; to the ternary check which defeats the point of me getting rid of the
+                ; key section...damn.
                 ;~ ? RegExMatch(json, this.rgx.k, m_, this.i)
                     ;~ ? (path[++p_i] := m_str, type[p_i] := 0
                         ;~ ,this.i += StrLen(m_) - 1, next := "v" )
@@ -575,17 +577,23 @@ Class JSON_AHK
     string_encode(txt) {
         Local
         
-        txt  := StrReplace(txt ,"\"  ,"\\" )    ; Backslashes
-        ,txt := StrReplace(txt ,"`b" ,"\b" )    ; Backspace
-        ,txt := StrReplace(txt ,"`f" ,"\f" )    ; Formfeed
-        ,txt := StrReplace(txt ,"`n" ,"\n" )    ; Linefeed
-        ,txt := StrReplace(txt ,"`r" ,"\r" )    ; Carriage Return
-        ,txt := StrReplace(txt ,"`t" ,"\t" )    ; Tab (Horizontal)
-        ,txt := StrReplace(txt ,"""" ,"\""")    ; Quotation Marks
+        If (txt == "")
+            Return txt
+        
+        txt  := StrReplace(SubStr(txt, 2, -1)   ; Quotes are stripped off
+                ,"\"  ,"\\" )                   ; Replace Backslashes
+        ,txt := StrReplace(txt ,"`b" ,"\b" )    ; Replace Backspace
+        ,txt := StrReplace(txt ,"`f" ,"\f" )    ; Replace Formfeed
+        ,txt := StrReplace(txt ,"`n" ,"\n" )    ; Replace Linefeed
+        ,txt := StrReplace(txt ,"`r" ,"\r" )    ; Replace Carriage Return
+        ,txt := StrReplace(txt ,"`t" ,"\t" )    ; Replace Tab (Horizontal)
+        ,txt := StrReplace(txt ,"""" ,"\""")    ; Replace Quotation Marks
         ,txt := StrReplace(txt ,"\\u" ,"\u")    ; Fix Unicode Escapes
-        Return StrReplace(txt                   ; Optional slash / solidus encoding
-            , this.esc_slash_search
-            , this.esc_slash_replace)
+        Return """"                             ; Optional Slash / Solidus encoding
+            . StrReplace(txt                    ; Add stripped quotes are replaced
+                , this.esc_slash_search
+                , this.esc_slash_replace)
+            . """"
     }
     
     ; Default settings for json_ahk
