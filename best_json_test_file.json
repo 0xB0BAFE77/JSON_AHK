@@ -1,91 +1,30 @@
 
 {
-	"key_01_str": "String",
-	"key_02_num": -1.05e+100,
-	"key_03_true_false_null":
-	{
-		"true": true,
-		"false": false,
-		"null": null
-	},
-	"key_04_obj_num":
+	"key_01_string": "String",
+	"key_02_number": -1.05e+100,
+	"key_03_array_true_false_null":[true, false, null],
+	"key_04_object_all_number_types":
 	{
 		"Integer": 1234567890,
 		"Integer negative": -420,
-		"Fraction/decimal": 0.987654321,
-		"Exponent": 99e2,
+		"Fraction/decimal": 98.6,
+		"Fraction starting with 0": 0.987654321,
+		"Exponent": 987e123,
 		"Exponent negative": -1e-999,
 		"Exponent positive": 11e+111,
 		"Mix of all": -3.14159e+100
 	},
-	"key_05_arr":
-	[
-		"Value1",
-		"Value2",
-		"Value3"
-	],
-	"key_06_nested_obj_arr":
-	{
-		"matrix":
-		[
-			[
-				0,
-				1,
-				2
-			],
-			[
-				0,
-				1,
-				2
-			],
-			[
-				0,
-				1,
-				2
-			]
-		],
-		"person object example":
-		{
-			"name": "0xB0BAFE77",
-			"job": "Professional Geek",
-			"faves":
-			{
-				"color":
-				[
-					"Black",
-					"White"
-				],
-				"food":
-				[
-					"Pizza",
-					"Cheeseburger",
-					"Steak"
-				],
-				"vehicle":
-				{
-					"make": "Subaru",
-					"model": "WRX STI",
-					"year": 2018,
-					"color":
-					{
-						"Primary": "Black",
-						"Secondary": "Red"
-					},
-					"transmission": "M",
-					"msrp": 26995.00
-				}
-			}
-		}
-	},
-	"key_07_string_stuff":
+	"key_05_string_stuff":
 	{
 		"ALPHA UPPER": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
 		"alpha lower": "abcdefghijklmnopqrstuvwxyz",
-		"Specials": "!@#$%^&*()_+-=[]{}<>,./?;':",
-		"Digits": "0123456789",
-		"0123456789": "Digits",
-		"key_case_check": "key_case_check lower",
-		"KEY_CASE_CHECK": "KEY_CASE_CHECK UPPER",
+		"Specials Chars": "!@#$%^&*()_+-=[]{}<>,./?;':",
+		"Digits - Value": "0123456789",
+		"0123456789": "Digits - Key",
+		"key_case_check": "key_case_check all lower",
+		"KEY_CASE_CHECK": "KEY_CASE_CHECK ALL UPPER",
+		"JSON text as value": "{\"array - str num tfn\": [\"string\", 3.14, true, false, null]}",
+		"Quotation Marks": "&#34; \u0022 `%22 0x22 034 &#x22;",
 		"Escape Characters":
 		{
 			"ESC_01 Quotation Mark": "\"",
@@ -101,16 +40,57 @@
 			"ESC_11 \/\t\u0033\t\/": "Key with Encodes"
 		}
 	},
-	"key_08_text_of_json_text": "{\"object with 1 member\": [\"array with 1 element\"]}",
-	"key_09_quotes": "&#34; \u0022 `%22 0x22 034 &#x22;",
-	"key_10_empty":
+	"key_06_nested_arrays":
+	[
+		[0, 1, 2],
+		[0, 1, 2],
+		[0, 1, 2]
+	],
+	"key_07_nested_objects":
+	{
+		"Person object":
+		{
+			"name": "0xB0BAFE77",
+			"job": "Professional Geek",
+			"favorites":
+			{
+				"color":
+				[
+					"Black",
+					"White"
+				],
+				"food":
+				[
+					"Pizza",
+					"Cheeseburger",
+					"Steak"
+				]
+			}
+		},
+		"vehicle object":
+		{
+			"make": "Subaru",
+			"model": "WRX STI",
+			"color":
+			{
+				"Primary": "Black",
+				"Secondary": "Red"
+			},
+			"transmission": {
+				"Manual": true,
+				"Automatic": false
+			},
+			"msrp": 26995.00
+		}
+	},
+	"key_08_empty":
 	{
 		"Empty Value": "",
 		"": "Empty Key",
 		"Empty Array": [],
 		"Empty Object": {}
 	},
-	"key_11_spacing":
+	"key_09_spacing":
 	{
 		"compact":[1,2,3,4,"a","b","c","d"],
 		"expanded":
@@ -123,7 +103,7 @@
 						"about ",
 							"whitespace ",
 								"inside ",
-									"of",
+									"of ",
 										"strings."
 											],
 		"valid JSON whitespace":
@@ -132,5 +112,5 @@
 			"Carriage Return",
 		"Horizontal Tab"]
 	},
-	"key_12_code_comments": ["C", "REM", "::", "NB.", "#", "%", "//", "'", "!", ";", "--", "*", "||", "*>"]
+	"key_10_code_comments": ["C", "REM", "::", "NB.", "#", "%", "//", "'", "!", ";", "--", "*", "||", "*>"]
 }
