@@ -273,8 +273,9 @@ Class JSON_AHK
         txt := this.to_json(this.to_ahk(this.test_file))
         save ? Clipboard := txt : ""
         ; This msgbox needs to be replaced by a custom made edit box
-        ; that displays the text in monospaced font
-        ; MsgBox makes JSON files look hideous and you can't set font
+        ; that displays the text in monospaced font and is in a scrollable,
+        ; ediablte field.
+        ; MsgBox makes JSON files look hideous. No customization, either.
         MsgBox, % txt
         Return txt
     }
@@ -310,9 +311,10 @@ Class JSON_AHK
         ; Set big indent
         ind_big := ind . this.indent_unit
         
-        str := (o_key == ""
+        str := ind
+            . (o_key = ""
                 ? ""
-                : "`n" ind )
+                : o_key "`n" ind)
             . (type ? "[" : "{")
             . "`n"
         
@@ -334,11 +336,6 @@ Class JSON_AHK
                             ? this.string_encode(value)
                             : value
                         : this.basic_error("This is not a valid value:`n" value "`ntype: " v))
-                    ;~ . (RegExMatch(value, this.rgx[])
-                        ;~ ? v == "s"
-                            ;~ ? this.string_encode(value)
-                            ;~ : value
-                        ;~ : this.basic_error("This is not a valid value:`n" value "`ntype: " v))
             }
             str .= ","
                 . "`n"
