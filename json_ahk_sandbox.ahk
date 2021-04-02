@@ -23,7 +23,7 @@ Class JSON_AHK
     ;   - Arrays are actually objects in AHK and not their own defined type.
     ;     This library "assumes" arrays by their indexes.
     ;	  If the first index is 1 and all subsequent indexes are 1 higher than the previous, it's considered an array
-    ;     Because of this, blank arrays [] will always export as blank objects {}.
+    ;     Because of this, a blank array [] will always export as a blank object {}.
     
     ; Currently working on/to-do:
     ;   - Stringfy doesn't work. Rewrite needed.
@@ -139,12 +139,10 @@ Class JSON_AHK
     Static cb_new_line          := True     ; True  | Close brace is put on a new line
     Static cb_val_inline        := False    ; False | Close brace on a new line are indented to match value
     
-    Static arr_val_same         := False    ; False | First value of an array appears on the same line as the brace
-    Static obj_val_same         := False    ; False | First value of an object appears on the same line as the brace
+    Static arr_first_same_line  := False    ; False | First value of an array appears on the same line as the brace
+    Static obj_first_same_line  := False    ; False | First value of an object appears on the same line as the brace
     
-    
-    
-    Static no_empty_brace_ws    := True     ; True  | Remove whitespace from empty braces
+    Static no_brace_ws          := True     ; True  | Remove whitespace from empty braces
     Static esc_slash            := False    ; False | Add the optional escape to forward slashes/solidus
     Static array_one_line       := False    ; False | List array elements on one line instead of multiple
     Static empty_arr_same_line  := True     ; True  | Overrides ob_new_line and keeps empty arrays on same line as key
@@ -166,7 +164,7 @@ Class JSON_AHK
                         ,"s"    : "(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))"
                         ,"n"    : "(?P<str>(?>-?(?>0|[1-9][0-9]*)(?>\.[0-9]+)?(?>[eE][+-]?[0-9]+)?))"
                         ,"b"    : "(?P<str>true|false|null)"
-                        ,"e"    : "^[ |\t|\n|\r]*(\{[ |\t|\n|\r]*\}|\[[ |\t|\n|\r]*\])[ |\t|\n|\r]*$"}
+                        ,"e"    : ":?[ |\t|\n|\r]*[\{|\[][ |\t|\n|\r]*$"}
     
     ; Used to assess values (string, number, true, false, null)
     Static is_val   :=  {"0":"n" ,"5":"n" ,0:"n" ,5:"n" ,"-" :"n"
@@ -182,23 +180,23 @@ Class JSON_AHK
     
     test_settings() {
         ; JSON settings
-        this.indent_unit          := "`t"
-        this.ob_new_line          := True
-        this.ob_val_inline        := False
-        this.cb_new_line          := True
-        this.cb_val_inline        := False
+        this.indent_unit        := "`t"
+        this.ob_new_line        := False
+        this.ob_val_inline      := False
+        this.cb_new_line        := True
+        this.cb_val_inline      := False
         
-        this.arr_val_same         := False
-        this.obj_val_same         := False
+        this.arr_first_same_line       := False
+        this.obj_first_same_line       := False
         
-        this.no_empty_brace_ws    := True
-        this.array_one_line       := False
-        this.add_quotes           := False
-        this.no_braces            := False
+        this.no_brace_ws        := True
+        this.array_one_line     := False
+        this.add_quotes         := False
+        this.no_braces          := False
         
         ; Obj settings
-        this.strip_quotes         := False
-        this.dupe_key_check       := True
+        this.strip_quotes       := False
+        this.dupe_key_check     := True
         
         Return
     }
@@ -302,69 +300,58 @@ Class JSON_AHK
     }
     
     ; Recursively extracts values from an object
-    ; type = Incoming object type: 0 for object, 1 for array
-    ; str is the current line of the JSON file. Doing it this way allows
-    ; for more (and easier) customization.
-    ; ind is set by the function and incremented by the .indent_unit property
+    ; type is 0 for an object, 1 for array
+    ; ind is the amount of indent from the left and is both set and
+    ; incremented by the function using the .indent_unit class property
+    ; o_key is the object's key and colon
+    ; Arrays will always pass a blank o_key
     to_json_extract(obj, type, ind:="", o_key:="") {
         Local
-        ; Set big indent
-        ind_big := ind . this.indent_unit
         
         str := ind
             . (o_key = ""
                 ? ""
-                : o_key "`n" ind)
+                : o_key 
+                . (this.ob_new_line
+                    ? "`n" (this.ob_val_inline
+                        ? ind . this.indent_unit 
+                        : ind)
+                    : ""))
             . (type ? "[" : "{")
             . "`n"
         
         For key, value in obj
-        {
-            If IsObject(value)
-            {
-                str .= this.to_json_extract(value
-                        ,this.is_array(value)
-                        ,ind_big
-                        ,(type ? "" : this.string_encode(key) ": "))
-            }
-            Else
-            {
-                str .= ind_big
+            str .= IsObject(value)
+                ? this.to_json_extract(value
+                    ,this.is_array(value)
+                    ,ind . this.indent_unit
+                    ,(type ? "" : this.string_encode(key) ": "))
+                    . ",`n"
+                : ind . this.indent_unit
                     . (type ? "" : this.string_encode(key) ": ")
                     . ((v := this.is_val[SubStr(value, 1, 1)])
                         ? v == "s"
                             ? this.string_encode(value)
                             : value
                         : this.basic_error("This is not a valid value:`n" value "`ntype: " v))
-            }
-            str .= ","
-                . "`n"
-        }
+                    . ","
+                    . "`n"
         
-        str := RTrim(str, ",`n")                    ; Strip off last comma and linefeed
-            . (this.cb_new_line                     ; Build end of object
-                ? "`n" . (this.cb_val_inline
-                    ? ind_big
-                    : ind)
-                : "")
-            . (this.no_braces ? ""
-                : type ? "]"
-                : "}")
-            
-        ; Empty object checker
+        Return (this.no_brace_ws && RegExMatch(str, this.rgx.e))    ; Check user settings for empty array
+            ? ind o_key "{}"                                        ; Return compressed empty array
+            : RTrim(str, ",`n")                                     ; Otherwise, strip ending
+                . (this.cb_new_line
+                    ? "`n" (this.cb_val_inline
+                        ? ind . this.indent_unit
+                        : ind)
+                    : "")
+                . (this.no_braces ? ""
+                    : type ? "]"
+                    : "}")
+        
+        ;; Note about arrays and objects in AHK
         ;; In AHK v1, all arrays are objects so there is no way to distinguish between an empty array and empty object
         ;; When constructing JSON output, empty arrays will always show as empty objects
-        ;~ If (this.no_empty_brace_ws && RegExMatch(str, this.rgx.e))
-            ;~ str := (this.empty_arr_same_line ? ""
-                    ;~ : this.ob_new_line 
-                        ;~ ? "`n"
-                        ;~ . (this.cb_val_inline 
-                            ;~ ? ind_big
-                            ;~ : ind)
-                        ;~ : "" )
-                    ;~ . "{}"
-        
-        Return str
     }
     
     to_json_validate() {
@@ -595,18 +582,18 @@ Class JSON_AHK
     
     ; Default settings for json_ahk
     _default() {
-        this.indent_unit      := "`t"
-        this.esc_slash        := False
-        this.ob_new_line      := True
-        this.ob_val_inline    := False
-        this.arr_val_same     := False
-        this.obj_val_same     := False
-        this.cb_new_line      := True
-        this.cb_val_inline    := False
-        this.no_empty_brace_ws:= True
-        this.add_quotes       := False
-        this.no_braces        := False
-        this.strip_quotes     := False
+        this.indent_unit            := "`t"
+        this.esc_slash              := False
+        this.ob_new_line            := True
+        this.ob_val_inline          := False
+        this.arr_first_same_line    := False
+        this.obj_first_same_line    := False
+        this.cb_new_line            := True
+        this.cb_val_inline          := False
+        this.no_brace_ws            := True
+        this.add_quotes             := False
+        this.no_braces              := False
+        this.strip_quotes           := False
         Return
     }
     
