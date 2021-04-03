@@ -181,10 +181,10 @@ Class JSON_AHK
     test_settings() {
         ; JSON settings
         this.indent_unit        := "`t"
-        this.ob_new_line        := False
-        this.ob_val_inline      := False
+        this.ob_new_line        := True
+        this.ob_val_inline      := True
         this.cb_new_line        := True
-        this.cb_val_inline      := False
+        this.cb_val_inline      := True
         
         this.arr_first_same_line       := False
         this.obj_first_same_line       := False
@@ -305,10 +305,10 @@ Class JSON_AHK
     ; incremented by the function using the .indent_unit class property
     ; o_key is the object's key and colon
     ; Arrays will always pass a blank o_key
-    to_json_extract(obj, type, ind:="", o_key:="") {
+    ;~ to_json_extract(obj, type, ind:="", o_key:="") {
         Local
         
-        str := ind
+        str := ind 
             . (o_key = ""
                 ? ""
                 : o_key 
@@ -336,14 +336,15 @@ Class JSON_AHK
                         : this.basic_error("This is not a valid value:`n" value "`ntype: " v))
                     . ","
                     . "`n"
+;            ,this.msg(str)
         
         Return (this.no_brace_ws && RegExMatch(str, this.rgx.e))    ; Check user settings for empty array
             ? ind o_key "{}"                                        ; Return compressed empty array
             : RTrim(str, ",`n")                                     ; Otherwise, strip ending
                 . (this.cb_new_line
-                    ? "`n" (this.cb_val_inline
-                        ? ind . this.indent_unit
-                        : ind)
+                    ? "`n" ind (this.cb_val_inline
+                        ? this.indent_unit
+                        : "")
                     : "")
                 . (this.no_braces ? ""
                     : type ? "]"
