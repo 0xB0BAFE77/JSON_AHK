@@ -305,7 +305,7 @@ Class JSON_AHK
     ; incremented by the function using the .indent_unit class property
     ; o_key is the object's key and colon
     ; Arrays will always pass a blank o_key
-    ;~ to_json_extract(obj, type, ind:="", o_key:="") {
+    to_json_extract(obj, type, ind:="", o_key:="") {
         Local
         
         str := ind 
