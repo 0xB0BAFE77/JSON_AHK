@@ -19,11 +19,13 @@ Class JSON_AHK
     ; AHK limitations disclaimer
     ;   - AHK is not a case-sensitive language. Object keys that only differ by case are considered the same key to AHK.
     ;     I'm adding in a check to see if the key exists first. If so, it will warn the user before overwriting.
-    ;     This will be a toggleable property option. something like json_ahk.dupe_key_check
-    ;   - Arrays are actually objects in AHK and not their own defined type.
-    ;     This library "assumes" arrays by their indexes.
-    ;	  If the first index is 1 and all subsequent indexes are 1 higher than the previous, it's considered an array
-    ;     Because of this, a blank array [] will always export as a blank object {}.
+    ;     This will be a toggleable property option. something like .key_check
+    ;   - Arrays are objects in AHK and not their own defined type.
+    ;     This library "assumes" an array by checking 2 things:
+    ;	    If the first key in the object is a 1
+    ;       If each following key is 1 greater than the last
+    ;     Because there are no keys to check in an empty array []
+    ;     it will always be detected as an empty object {}
     
     ; Currently working on/to-do:
     ;   - Stringfy doesn't work. Rewrite needed.
@@ -49,6 +51,13 @@ Class JSON_AHK
     ; - Massive update to README file
     ; - Rewrite of stringify()
     ; - Reduced conversion time by doing a mass tab/linefeed/carriage return trimming prior to parsing
+    ; Update for 20210405
+    ; - Rewrote to_json() and fixed most of the properties issues
+    ; - Currently, a 10MB file on a crappy thin client machine will convert in ~13 seconds (either way)
+    ; - Doing more optimizing
+    ; - Still building the error detector
+    ; - 2 Built-in testfiles. One object, one array.
+    ; - 
     
     
     ;===========================================================================.
@@ -56,7 +65,7 @@ Class JSON_AHK
     ; Desc:         Library that converts JSON to AHK objects and AHK to JSON   |
     ; Author:       0xB0BAFE77                                                  |
     ; Created:      20200301                                                    |
-    ; Last Update:  20210307                                                    |
+    ; Last Update:  20210405                                                    |
     ;==========================================================================='
     
     ;=============================================================================================================================================.
@@ -139,8 +148,8 @@ Class JSON_AHK
     Static cb_new_line          := True     ; True  | Close brace is put on a new line
     Static cb_val_inline        := False    ; False | Close brace on a new line are indented to match value
     
-    Static arr_first_same_line  := False    ; False | First value of an array appears on the same line as the brace
-    Static obj_first_same_line  := False    ; False | First value of an object appears on the same line as the brace
+    Static arr_val_same_line  := False    ; False | First value of an array appears on the same line as the brace
+    Static obj_val_same_line  := False    ; False | First value of an object appears on the same line as the brace
     
     Static no_brace_ws          := True     ; True  | Remove whitespace from empty braces
     Static esc_slash            := False    ; False | Add the optional escape to forward slashes/solidus
@@ -155,9 +164,10 @@ Class JSON_AHK
     Static dupe_key_check       := True     ; True  | Notifies users of dupliciate keys.
     ;==================================================================================================================
     
-    ; Test file (very thorough)
-    Static test_file := "[`n`t""JSON Test Pattern pass1"",`n`t{""object with 1 members"":[""array with 1 element""]},`n`t{},`n`t[],`n`t-42,`n`ttrue,`n`tfalse,`n`tnull,`n`t{`n`t`t""integer"": 1234567890,`n`t`t""real"": -9876.543210,`n`t`t""e"": 0.123456789e-12,`n`t`t""E"": 1.234567890E+34,`n`t`t"""":  23456789012E66,`n`t`t""zero"": 0,`n`t`t""one"": 1,`n`t`t""space"": "" "",`n`t`t""quote"": ""\"""",`n`t`t""backslash"": ""\\"",`n`t`t""controls"": ""\b\f\n\r\t"",`n`t`t""slash"": ""/ & \/"",`n`t`t""alpha"": ""abcdefghijklmnopqrstuvwyz"",`n`t`t""ALPHA"": ""ABCDEFGHIJKLMNOPQRSTUVWYZ"",`n`t`t""digit"": ""0123456789"",`n`t`t""0123456789"": ""digit"",`n`t`t""special"": ""````1~!@#$``%^&*()_+-={':[,]}|;.</>?"",`n`t`t""hex"": ""\u0123\u4567\u89AB\uCDEF\uabcd\uef4A"",`n`t`t""true"": true,`n`t`t""false"": false,`n`t`t""null"": null,`n`t`t""array"":[  ],`n`t`t""object"":{  },`n`t`t""address"": ""50 St. James Street"",`n`t`t""url"": ""http://www.JSON.org/"",`n`t`t""comment"": ""// /* <!-- --"",`n`t`t""# -- --> */"": "" "",`n`t`t"" s p a c e d "" :[1,2 , 3`n`n,`n`n4 , 5`t`t,`t`t  6`t`t   ,7`t`t],""compact"":[1,2,3,4,5,6,7],`n`t`t""jsontext"": ""{\""object with 1 member\"":[\""array with 1 element\""]}"",`n`t`t""quotes"": ""&#34; \u0022 ``%22 0x22 034 &#x22;"",`n`t`t""\/\\\""\uCAFE\uBABE\uAB98\uFCDE\ubcda\uef4A\b\f\n\r\t``1~!@#$``%^&*()_+-=[]{}|;:',./<>?""`n: ""A key can be any string""`n`t},`n`t0.5 ,98.6`n,`n99.44`n,`n`n1066,`n1e1,`n0.1e1,`n1e-1,`n1e00,2e+00,2e-00`n,""rosebud""]"
-    ;Static test_file := "{`n`t""key_01_str"": ""String"",`n`t""key_02_num"": -1.05e+100,`n`t""key_03_true_false_null"":`n`t{`n`t`t""true"": true,`n`t`t""false"": false,`n`t`t""null"": null`n`t},`n`t""key_04_obj_num"":`n`t{`n`t`t""Integer"": 1234567890,`n`t`t""Integer negative"": -420,`n`t`t""Fraction/decimal"": 0.987654321,`n`t`t""Exponent"": 99e2,`n`t`t""Exponent negative"": -1e-999,`n`t`t""Exponent positive"": 11e+111,`n`t`t""Mix of all"": -3.14159e+100`n`t},`n`t""key_05_arr"":`n`t[`n`t`t""Value1"",`n`t`t""Value2"",`n`t`t""Value3""`n`t],`n`t""key_06_nested_obj_arr"":`n`t{`n`t`t""matrix"":`n`t`t[`n`t`t`t[`n`t`t`t`t0,`n`t`t`t`t1,`n`t`t`t`t2`n`t`t`t],`n`t`t`t[`n`t`t`t`t0,`n`t`t`t`t1,`n`t`t`t`t2`n`t`t`t],`n`t`t`t[`n`t`t`t`t0,`n`t`t`t`t1,`n`t`t`t`t2`n`t`t`t]`n`t`t],`n`t`t""person object example"":`n`t`t{`n`t`t`t""name"": ""0xB0BAFE77"",`n`t`t`t""job"": ""Professional Geek"",`n`t`t`t""faves"":`n`t`t`t{`n`t`t`t`t""color"":`n`t`t`t`t[`n`t`t`t`t`t""Black"",`n`t`t`t`t`t""White""`n`t`t`t`t],`n`t`t`t`t""food"":`n`t`t`t`t[`n`t`t`t`t`t""Pizza"",`n`t`t`t`t`t""Cheeseburger"",`n`t`t`t`t`t""Steak""`n`t`t`t`t],`n`t`t`t`t""vehicle"":`n`t`t`t`t{`n`t`t`t`t`t""make"": ""Subaru"",`n`t`t`t`t`t""model"": ""WRX STI"",`n`t`t`t`t`t""year"": 2018,`n`t`t`t`t`t""color"":`n`t`t`t`t`t{`n`t`t`t`t`t`t""Primary"": ""Black"",`n`t`t`t`t`t`t""Secondary"": ""Red""`n`t`t`t`t`t},`n`t`t`t`t`t""transmission"": ""M"",`n`t`t`t`t`t""msrp"": 26995.00`n`t`t`t`t}`n`t`t`t}`n`t`t}`n`t},`n`t""key_07_string_stuff"":`n`t{`n`t`t""ALPHA UPPER"": ""ABCDEFGHIJKLMNOPQRSTUVWXYZ"",`n`t`t""alpha lower"": ""abcdefghijklmnopqrstuvwxyz"",`n`t`t""Specials"": ""!@#$%^&*()_+-=[]{}<>,./?;':"",`n`t`t""Digits"": ""0123456789"",`n`t`t""0123456789"": ""Digits"",`n`t`t""key_case_check"": ""key_case_check lower"",`n`t`t""KEY_CASE_CHECK"": ""KEY_CASE_CHECK UPPER"",`n`t`t""Escape Characters"":`n`t`t{`n`t`t`t""ESC_01 Quotation Mark"": ""\"""",`n`t`t`t""ESC_02 Backslash/Reverse Solidus"": ""\\"",`n`t`t`t""ESC_03 Slash/Solidus (Not a mandatory escape)"": ""\/ and / work"",`n`t`t`t""ESC_04 Backspace"": ""\b"",`n`t`t`t""ESC_05 Formfeed"": ""\f"",`n`t`t`t""ESC_06 Linefeed"": ""\n"",`n`t`t`t""ESC_07 Carriage Return"": ""\r"",`n`t`t`t""ESC_08 Horizontal Tab"": ""\t"",`n`t`t`t""ESC_09 Unicode"": ""\u00AF\\_(\u30C4)_\/\u00AF"",`n`t`t`t""ESC_10 All"": ""\\\/\""\b\f\n\r\t\u0033"",`n`t`t`t""ESC_11 \/\t\u0033\t\/"": ""Key with Encodes""`n`t`t}`n`t},`n`t""key_08_text_of_json_text"": ""{\""object with 1 member\"": [\""array with 1 element\""]}"",`n`t""key_09_quotes"": ""&#34; \u0022 `%22 0x22 034 &#x22;"",`n`t""key_10_empty"":`n`t{`n`t`t""Empty Value"": """",`n`t`t"""": ""Empty Key"",`n`t`t""Empty Array"": [],`n`t`t""Empty Object"": {}`n`t},`n`t""key_11_spacing"":`n`t{`n`t`t""compact"":[1,2,3,4,""a"",""b"",""c"",""d""],`n`t`t""expanded"":`n`t`t[`n`t`t`t""This "",                      ""is""  `t`t`t          ,""considered""`n`t`t`t`t`t`t,""valid "",`t`t`t`t    ""spacing.\n"",`n`t`t`t""JSON "",`n`t`t`t`t""only "",`n`t`t`t`t`t""cares "",`n`t`t`t`t`t`t""about "",`n`t`t`t`t`t`t`t""whitespace "",`n`t`t`t`t`t`t`t`t""inside "",`n`t`t`t`t`t`t`t`t`t""of"",`n`t`t`t`t`t`t`t`t`t`t""strings.""`n`t`t`t`t`t`t`t`t`t`t`t],`n`t`t""valid JSON whitespace"":`n`t`t`t`t`t[""Space"",`n`t`t`t`t""Linefeed"",`n`t`t`t""Carriage Return"",`n`t`t""Horizontal Tab""]`n`t},`n`t""key_12_code_comments"": [""C"", ""REM"", ""::"", ""NB."", ""#"", ""%"", ""//"", ""'"", ""!"", "";"", ""--"", ""*"", ""||"", ""*>""]`n}"
+    ; Test files that check almost everything
+    ; _a starts as an array and _o starts as an object
+    Static test_file_a := "[`n`t""JSON Test Pattern pass1"",`n`t{""object with 1 members"":[""array with 1 element""]},`n`t{},`n`t[],`n`t-42,`n`ttrue,`n`tfalse,`n`tnull,`n`t{`n`t`t""integer"": 1234567890,`n`t`t""real"": -9876.543210,`n`t`t""e"": 0.123456789e-12,`n`t`t""E"": 1.234567890E+34,`n`t`t"""":  23456789012E66,`n`t`t""zero"": 0,`n`t`t""one"": 1,`n`t`t""space"": "" "",`n`t`t""quote"": ""\"""",`n`t`t""backslash"": ""\\"",`n`t`t""controls"": ""\b\f\n\r\t"",`n`t`t""slash"": ""/ & \/"",`n`t`t""alpha"": ""abcdefghijklmnopqrstuvwyz"",`n`t`t""ALPHA"": ""ABCDEFGHIJKLMNOPQRSTUVWYZ"",`n`t`t""digit"": ""0123456789"",`n`t`t""0123456789"": ""digit"",`n`t`t""special"": ""````1~!@#$``%^&*()_+-={':[,]}|;.</>?"",`n`t`t""hex"": ""\u0123\u4567\u89AB\uCDEF\uabcd\uef4A"",`n`t`t""true"": true,`n`t`t""false"": false,`n`t`t""null"": null,`n`t`t""array"":[  ],`n`t`t""object"":{  },`n`t`t""address"": ""50 St. James Street"",`n`t`t""url"": ""http://www.JSON.org/"",`n`t`t""comment"": ""// /* <!-- --"",`n`t`t""# -- --> */"": "" "",`n`t`t"" s p a c e d "" :[1,2 , 3`n`n,`n`n4 , 5`t`t,`t`t  6`t`t   ,7`t`t],""compact"":[1,2,3,4,5,6,7],`n`t`t""jsontext"": ""{\""object with 1 member\"":[\""array with 1 element\""]}"",`n`t`t""quotes"": ""&#34; \u0022 ``%22 0x22 034 &#x22;"",`n`t`t""\/\\\""\uCAFE\uBABE\uAB98\uFCDE\ubcda\uef4A\b\f\n\r\t``1~!@#$``%^&*()_+-=[]{}|;:',./<>?""`n: ""A key can be any string""`n`t},`n`t0.5 ,98.6`n,`n99.44`n,`n`n1066,`n1e1,`n0.1e1,`n1e-1,`n1e00,2e+00,2e-00`n,""rosebud""]"
+    Static test_file_o := "{`n`t""key_01_str"": ""String"",`n`t""key_02_num"": -1.05e+100,`n`t""key_03_true_false_null"":`n`t{`n`t`t""true"": true,`n`t`t""false"": false,`n`t`t""null"": null`n`t},`n`t""key_04_obj_num"":`n`t{`n`t`t""Integer"": 1234567890,`n`t`t""Integer negative"": -420,`n`t`t""Fraction/decimal"": 0.987654321,`n`t`t""Exponent"": 99e2,`n`t`t""Exponent negative"": -1e-999,`n`t`t""Exponent positive"": 11e+111,`n`t`t""Mix of all"": -3.14159e+100`n`t},`n`t""key_05_arr"":`n`t[`n`t`t""Value1"",`n`t`t""Value2"",`n`t`t""Value3""`n`t],`n`t""key_06_nested_obj_arr"":`n`t{`n`t`t""matrix"":`n`t`t[`n`t    `t[`n`t    `t`t0,`n`t    `t`t1,`n`t    `t`t2`n`t    `t],`n`t    `t[`n`t    `t`t0,`n`t    `t`t1,`n`t    `t`t2`n`t    `t],`n`t    `t[`n`t    `t`t0,`n`t    `t`t1,`n`t    `t`t2`n`t    `t]`n`t`t],`n`t`t""person object example"":`n`t`t{`n`t    `t""name"": ""0xB0BAFE77"",`n`t    `t""job"": ""Professional Geek"",`n`t    `t""faves"":`n`t    `t{`n`t    `t`t""color"":`n`t    `t`t[`n`t    `t    `t""Black"",`n`t    `t    `t""White""`n`t    `t`t],`n`t    `t`t""food"":`n`t    `t`t[`n`t    `t    `t""Pizza"",`n`t    `t    `t""Cheeseburger"",`n`t    `t    `t""Steak""`n`t    `t`t],`n`t    `t`t""vehicle"":`n`t    `t`t{`n`t    `t    `t""make"": ""Subaru"",`n`t    `t    `t""model"": ""WRX STI"",`n`t    `t    `t""year"": 2018,`n`t    `t    `t""color"":`n`t    `t    `t{`n`t    `t`t    `t""Primary"": ""Black"",`n`t    `t`t    `t""Secondary"": ""Red""`n`t    `t    `t},`n`t    `t    `t""transmission"": ""M"",`n`t    `t    `t""msrp"": 26995.00`n`t    `t`t}`n`t    `t}`n`t`t}`n`t},`n`t""key_07_string_stuff"":`n`t{`n`t`t""ALPHA UPPER"": ""ABCDEFGHIJKLMNOPQRSTUVWXYZ"",`n`t`t""alpha lower"": ""abcdefghijklmnopqrstuvwxyz"",`n`t`t""Specials"": ""!@#$%^&*()_+-=[]{}<>,./?;':"",`n`t`t""Digits"": ""0123456789"",`n`t`t""0123456789"": ""Digits"",`n`t`t""key_case_check"": ""key_case_check lower"",`n`t`t""KEY_CASE_CHECK"": ""KEY_CASE_CHECK UPPER"",`n`t`t""Escape Characters"":`n`t`t{`n`t    `t""ESC_01 Quotation Mark"": ""\"""",`n`t    `t""ESC_02 Backslash/Reverse Solidus"": ""\\"",`n`t    `t""ESC_03 Slash/Solidus (Not a mandatory escape)"": ""\/ and / work"",`n`t    `t""ESC_04 Backspace"": ""\b"",`n`t    `t""ESC_05 Formfeed"": ""\f"",`n`t    `t""ESC_06 Linefeed"": ""\n"",`n`t    `t""ESC_07 Carriage Return"": ""\r"",`n`t    `t""ESC_08 Horizontal Tab"": ""\t"",`n`t    `t""ESC_09 Unicode"": ""\u00AF\\_(\u30C4)_\/\u00AF"",`n`t    `t""ESC_10 All"": ""\\\/\""\b\f\n\r\t\u0033"",`n`t    `t""ESC_11 \/\t\u0033\t\/"": ""Key with Encodes""`n`t`t}`n`t},`n`t""key_08_text_of_json_text"": ""{\""object with 1 member\"": [\""array with 1 element\""]}"",`n`t""key_09_quotes"": ""&#34; \u0022 `%22 0x22 034 &#x22;"",`n`t""key_10_empty"":`n`t{`n`t`t""Empty Value"": """",`n`t`t"""": ""Empty Key"",`n`t`t""Empty Array"": [],`n`t`t""Empty Object"": {}`n`t},`n`t""key_11_spacing"":`n`t{`n`t`t""compact"":[1,2,3,4,""a"",""b"",""c"",""d""],`n`t`t""expanded"":`n`t`t[`n`t    `t""This "",                      ""is""  `t    `t          ,""considered""`n`t    `t`t    `t,""valid "",`t    `t`t    ""spacing.\n"",`n`t    `t""JSON "",`n`t    `t`t""only "",`n`t    `t    `t""cares "",`n`t    `t`t    `t""about "",`n`t    `t`t    `t`t""whitespace "",`n`t    `t`t    `t    `t""inside "",`n`t    `t`t    `t`t    `t""of"",`n`t    `t`t    `t`t    `t`t""strings.""`n`t    `t`t    `t`t    `t    `t],`n`t`t""valid JSON whitespace"":`n`t    `t    `t[""Space"",`n`t    `t`t""Linefeed"",`n`t    `t""Carriage Return"",`n`t`t""Horizontal Tab""]`n`t},`n`t""key_12_code_comments"": [""C"", ""REM"", ""::"", ""NB."", ""#"", ""%"", ""//"", ""'"", ""!"", "";"", ""--"", ""*"", ""||"", ""*>""]`n}"
     
     ; RegEx Bank (Kudos to mateon1 at regex101.com for creating most of these regex patterns)
     Static rgx	    :=  {"k"    : "(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))[ ]*:"
@@ -181,13 +191,13 @@ Class JSON_AHK
     test_settings() {
         ; JSON settings
         this.indent_unit        := "`t"
-        this.ob_new_line        := True
-        this.ob_val_inline      := True
-        this.cb_new_line        := True
-        this.cb_val_inline      := True
+        this.ob_new_line        := False
+        this.ob_val_inline      := False
+        this.cb_new_line        := False
+        this.cb_val_inline      := False
         
-        this.arr_first_same_line       := False
-        this.obj_first_same_line       := False
+        this.arr_val_same_line  := False
+        this.obj_val_same_line  := False
         
         this.no_brace_ws        := True
         this.array_one_line     := False
@@ -202,14 +212,28 @@ Class JSON_AHK
     }
     
     test() {
-        ; IfElse vs ternary,    25 MB file,         5 iterations
-        ; IfElse                to_ahk:             to_json: 
-        ; Ternary               to_ahk: 3.65 sec    to_json: 16.8 sec
+        ; Doing mass strreplace for tab/LF/CR prior to parsing
+        ; 10 MB x3 Before:      to_ahk:       sec   to_json:       sec
+        ; 10 MB x3 After:       to_ahk:       sec   to_json:       sec
+        ; 25 MB x2 Before:      to_ahk:       sec   to_json:       sec
+        ; 25 MB x2 After:       to_ahk:       sec   to_json:       sec
+        
+        ; Doing mass strreplace for tab/LF/CR prior to parsing
+        ; 10 MB x3 Before:      to_ahk: 15.01 sec   to_json: 12.44 sec
+        ; 10 MB x3 After:       to_ahk: 13.13 sec   to_json: 13.02 sec
+        ; 25 MB x2 Before:      to_ahk: 20.27 sec   to_json: 70.20 sec
+        ; 25 MB x2 After:       to_ahk: 19.47 sec   to_json: 77.10 sec
+        
+        ; Setting str size prior to creating json. 10MB file.
+        ; 10 MB x5 Before:      to_ahk: 13.06 sec   to_json: 13.89 sec
+        ; 10 MB x5 After:       to_ahk: 13.14 sec   to_json: 13.66 sec
+        ; 25 MB x2 Before:      to_ahk: 19.53 sec   to_json: 77.43 sec
+        ; 25 MB x2 After:       to_ahk: 19.36 sec   to_json: 77.03 sec
         
         obj     := {}
-        jtxt    := json_ahk.test_file
-        ;jtxt    := json_ahk.import()
-        i       := 1
+        jtxt    := json_ahk.test_file_a
+        jtxt    := json_ahk.import()
+        i       := 2
         
         this.test_settings()
         ;this.array_one_line := True
@@ -229,6 +253,7 @@ Class JSON_AHK
                 . "`n[qpx]to_json convert time: " t2/i " sec"
                 . "`nJSON on clipboard."
                 . "`n`n" json
+        
         Return
     }
     
@@ -260,15 +285,13 @@ Class JSON_AHK
         Return json
     }
     
-    ; Pretty much a clone of to_ahk() except no writing/object building
-    ; I would just adapt to_ahk() but the extra if checks are going to slow things down
     validate(json) {
         
         Return
     }
     
     preview(save:=0) {
-        txt := this.to_json(this.to_ahk(this.test_file))
+        txt := this.to_json(this.to_ahk(this.test_file_a))
         save ? Clipboard := txt : ""
         ; This msgbox needs to be replaced by a custom made edit box
         ; that displays the text in monospaced font and is in a scrollable,
@@ -308,17 +331,24 @@ Class JSON_AHK
     to_json_extract(obj, type, ind:="", o_key:="") {
         Local
         
-        str := ind 
+        str := ind
             . (o_key = ""
-                ? ""
-                : o_key 
+                ? (this.ob_val_inline
+                    ? this.indent_unit
+                    : "")
+                : o_key
                 . (this.ob_new_line
-                    ? "`n" (this.ob_val_inline
-                        ? ind . this.indent_unit 
-                        : ind)
+                    ? "`n" ind
+                    . (this.ob_val_inline
+                        ? this.indent_unit
+                        : "")
                     : ""))
             . (type ? "[" : "{")
-            . "`n"
+            . (type && this.arr_val_same_line
+                ? ""
+                : !type && this.obj_val_same_line
+                ? ""
+                : "`n")
         
         For key, value in obj
             str .= IsObject(value)
@@ -333,10 +363,10 @@ Class JSON_AHK
                         ? v == "s"
                             ? this.string_encode(value)
                             : value
-                        : this.basic_error("This is not a valid value:`n" value "`ntype: " v))
+                        : this.basic_error("to_json() error."
+                            . "`nThis is not a valid value: " value))
                     . ","
                     . "`n"
-;            ,this.msg(str)
         
         Return (this.no_brace_ws && RegExMatch(str, this.rgx.e))    ; Check user settings for empty array
             ? ind o_key "{}"                                        ; Return compressed empty array
@@ -393,11 +423,13 @@ Class JSON_AHK
         ; Remove all non-space whitespace
         ; Tabs/linefeeds/carriage returns are escaped in strings
         ; In a json file, these 3 forms of whitespace are only there for formatting
-        txt := StrReplace(StrReplace(StrReplace(txt,"`t"),"`n"),"`r")
-        str := ""
-        i   := n := j := 1
-        max := StrLen(txt)
-        in_str := False
+        txt  := StrReplace(txt,"`t")
+        ,txt := StrReplace(txt,"`n")
+        ,txt := StrReplace(txt,"`r")
+        ,str := ""
+        ,i   := n := j := 1
+        ,max := StrLen(txt)
+        ,in_str := False
         
         ; Try doing a regex match for strings
         ; Everything up to that index is non-string.
@@ -447,70 +479,58 @@ Class JSON_AHK
         this.json := json
         
         While (this.i < max)
-            (char := SubStr(json,++this.i,1)) == " "
+            (char := SubStr(json,++this.i,1)) = " "
                 ? ""
-            : next == "v"
-                ? this.is_val[char]
-                    ? RegExMatch(json, this.rgx[this.is_val[char]], m_, this.i)
-                        ? ( obj[path*] := (this.is_val[char]=="s") 
-                            ? InStr(m_str, "\")
-                                ? strip_q . this.string_decode(SubStr(m_str,2,-1)) . strip_q
-                                : this.strip_quotes     
-                                    ? SubStr(m_str,2,-1)
-                                    : m_str
-                            : m_str
-                        ,this.i += StrLen(m_str)-1
-                        ,next := "e" )
-                    : this.to_json_err("value", this.is_val[char])
-                : char == "{"
-                    ? (obj[path*] := {}, next := "k")
-                : char == "["
-                    ? (obj[path*] := {}, next := "a")
-                : this.to_json_err("value")
-            : next == "e"
-                ? char == ","
-                    ? type[p_i]
-                        ? (path[p_i]++, next := "v")
-                    : (path.Pop(), type.Pop(), --p_i, next := "k")
-                : (char == "}" && !type[p_i])
-                || (char == "]" && type[p_i])
-                    ? (path.Pop(), type.Pop(), --p_i)
-                : this.to_json_err("end", type[p_i])
-            : next == "k"
-                ; Why does this not work?!
-                ; Why do I have to do the end brace check first?
-                ; The regex match for the key should fail and go on but it doesn't.
-                ; There is something off with the key regex match...
-                ; Also, for consideration:
-                ; Move the key check out of here, use the string regex in the value section
-                ; Would need to have a variable to track if string is key or value.
-                ; Will need a colon token checker, too. Which adds another section
-                ; to the ternary check which defeats the point of me getting rid of the
-                ; key section...damn.
-                ;~ ? RegExMatch(json, this.rgx.k, m_, this.i)
-                    ;~ ? (path[++p_i] := m_str, type[p_i] := 0
-                        ;~ ,this.i += StrLen(m_) - 1, next := "v" )
-                ;~ : (char == "}")
-                    ;~ ? next := "e"                ? (char == "}")
-                ? char == "}"
-                    ? next := "e"
-                : RegExMatch(json, this.rgx.k, m_, this.i)
-                    ? (path[++p_i] := m_str, type[p_i] := 0
-                        ,this.i += StrLen(m_) - 1, next := "v" )
-                : this.to_json_err("key")
-            : next == "a"
-                ? char == "]" ? next := "e"
-                : (path[++p_i] := 1, type[p_i] := 1, next := "v", --this.i)
-            : next == "s"
-                ? char == "{" ? next := "k"
-                : char == "[" ? next := "a"
-                : this.to_json_err("start")
-            : this.basic_error("Invalid next variable during parse value."
-                . "`nThe end user should never see this message.")
+                : next == "v"
+                    ? this.is_val[char]
+                        ? RegExMatch(json, this.rgx[this.is_val[char]], m_, this.i)
+                            ? (obj[path*] := (this.is_val[char] == "s")
+                                ? InStr(m_str, "\")
+                                    ? strip_q
+                                    . this.string_decode(SubStr(m_str,2,-1))
+                                    . strip_q
+                                    : this.strip_quotes
+                                        ? SubStr(m_str,2,-1)
+                                        : m_str
+                                : m_str
+                            ,this.i += StrLen(m_str)-1
+                            ,next := "e" )
+                        : this.to_json_err("value", this.is_val[char])
+                    : char == "{"
+                        ? (obj[path*] := {}, next := "k")
+                    : char == "["
+                        ? (obj[path*] := {}, next := "a")
+                    : this.to_json_err("value")
+                : next == "e"
+                    ? char == ","
+                        ? type[p_i]
+                            ? (path[p_i]++, next := "v")
+                        : (path.Pop(), type.Pop(), --p_i, next := "k")
+                    : (char == "}" && !type[p_i])
+                    || (char == "]" && type[p_i])
+                        ? (path.Pop(), type.Pop(), --p_i)
+                    : this.to_json_err("end", type[p_i])
+                : next == "k"
+                    ? char == "}"
+                        ? next := "e"
+                    : RegExMatch(json, this.rgx.k, m_, this.i)
+                        ? (path[++p_i] := m_str, type[p_i] := 0
+                            ,this.i += StrLen(m_) - 1, next := "v" )
+                    : this.to_json_err("key")
+                : next == "a"
+                    ? char == "]"
+                        ? next := "e"
+                        : (path[++p_i] := 1, type[p_i] := 1, next := "v", --this.i)
+                : next == "s"
+                    ? char == "{" ? next := "k"
+                    : char == "[" ? next := "a"
+                    : this.to_json_err("start")
+                : this.basic_error("Invalid next variable during parse value."
+                    . "`nThe end user should never see this message.")
         
         this.json := ""                         ; Post conversion clean up
         
-        (p_i != 0)                              ; Verify there are no open objects or arrays left
+        (p_i != 0)                              ; Verify p_i is 0 to indicate no open objects or arrays
             ? this.to_json_err("braces", p_i)
             : ""
         
@@ -587,8 +607,8 @@ Class JSON_AHK
         this.esc_slash              := False
         this.ob_new_line            := True
         this.ob_val_inline          := False
-        this.arr_first_same_line    := False
-        this.obj_first_same_line    := False
+        this.arr_val_same_line    := False
+        this.obj_val_same_line    := False
         this.cb_new_line            := True
         this.cb_val_inline          := False
         this.no_brace_ws            := True
