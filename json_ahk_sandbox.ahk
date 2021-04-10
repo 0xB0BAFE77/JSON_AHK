@@ -594,18 +594,18 @@ Class JSON_AHK
     
     ; Default settings for json_ahk
     _default() {
-        this.indent_unit            := "`t"
-        this.esc_slash              := False
-        this.ob_new_line            := True
-        this.ob_val_inline          := False
-        this.arr_val_same_line    := False
-        this.obj_val_same_line    := False
-        this.cb_new_line            := True
-        this.cb_val_inline          := False
-        this.no_brace_ws            := True
-        this.add_quotes             := False
-        this.no_braces              := False
-        this.strip_quotes           := False
+        this.indent_unit        := "`t"
+        this.esc_slash          := False
+        this.ob_new_line        := True
+        this.ob_val_inline      := False
+        this.arr_val_same_line  := False
+        this.obj_val_same_line  := False
+        this.cb_new_line        := True
+        this.cb_val_inline      := False
+        this.no_brace_ws        := True
+        this.add_quotes         := False
+        this.no_braces          := False
+        this.strip_quotes       := False
         Return
     }
     
@@ -617,6 +617,11 @@ Class JSON_AHK
             If (k != A_Index)
                 Return 0
         Return 1
+    }
+    
+    validate_string(txt) {
+        
+        Return
     }
     
     ; ===== Error checking =====
