@@ -1,105 +1,71 @@
+/*
+Rewrite/Updated Version
+.__________________
+| Class: json_ahk  \______________________________________________________________________________________________
+|__________________/_____________________________________________________________________________________________/|
+| Methods:                  | Description and return value                                                       ||
+|---------------------------+------------------------------------------------------------------------------------||
+|   import(convert:=1)      | Use GUI to select file user to select file then runs json_ahk.to_obj().            ||
+|                           | Convert true -> returns AHK object and false -> returns json text.                 ||
+|   to_obj(json_text)       | Convert json text to ahk object -> returns object                                  ||
+|   to_json(obj, opt:="")   | Convert ahk object to json text -> returns json_text                               ||
+|                           | opt = 0 or "pretty" -> returns text formatted for human readability                ||
+|                           | opt = 1 or "stringify" -> returns text with no formatting for portability          ||
+|   validate(json_text)     | Validates JSON text -> returns 1 for valid or 0 for failure                        ||
+|   stringify(json)         | Returns json_text without any formatting                                           ||
+|                           | Both objects and json_text can be passed in                                        ||
+|=== NOT IMPLEMENTED YET ===|====================================================================================||
+|   preview()               | Show preview of current export settings using the built in test file               ||
+|   editor()                | Launch the JSON editor used for troubleshooting                                    ||
+|================================================================================================================||
+| Properties:               | Default   | Description                                                            ||
+|     error_last            |           | Stores information about last error                                    ||
+|     error_log             |           | Store list of all errors this session                                  ||
+|     indent_unit           | "  "      | Chars used for each level of indentation e.g. "`t" for tab             ||
+|     dupe_key_check        | True      | True -> check for duplicate keys, false -> ignore the check            ||
+|     empty_obj_type        | True      | True -> Empty objects/arrays export as {}                              ||
+|                           |           | False -> Empty objects and arrays export as []                         ||
+|     escape_slashes        | True      | True -> Forward slashes will be escaped: \/                            ||
+|                           |           | False -> Forward slashes will not be escaped: /                        ||
+|     key_value_inline      | True      | True -> Object values and keys appear on same line                     ||
+|                           |           | False -> Object values appear indented below key name                  ||
+|     key_bracket_inline    | False     | True -> Brackets are on same line as key                               ||
+|                           |           | False -> Brackets are put on line after key                            ||
+|     import_keep_quotes    | True      | True -> When importing JSON text, store string quotes                  ||
+|                           |           | False -> When importing JSON text, remove string quotes                ||
+|     export_add_quotes     | True      | True -> When exporting JSON text, add quotes to strings                ||
+|                           |           | False -> When exporting JSON text, assume all strings are quoted       ||
+|     error_offset          | 30        | Number of characters left and right of caught errors                   ||
+|___________________________|___________|________________________________________________________________________|/
+*/
+
 Class JSON_AHK
 {
-    ; AHK limitations disclaimer
-    ;   - AHK is not a case-sensitive language. Object keys that only differ by case are considered the same key to AHK.
-    ;     I'm adding in a check to see if the key exists first. If so, it will warn the user before overwriting.
-    ;     This will be a toggleable property option. something like .key_check
-    ;   - Arrays are objects in AHK and not their own defined type.
-    ;     This library "assumes" an array by checking 2 things:
-    ;	    If the first key in the object is a 1
-    ;       If each following key is 1 greater than the last
-    ;     Because there are no keys to check in an empty array []
-    ;     it will always be detected as an empty object {}
-    
-    ; Currently working on/to-do:
-    ;   - Stringfy doesn't work. Rewrite needed.
-    ;   - Error checking still needs to be implemented
-    ;     This should be able to the user EXACTLY where the error is and why it's an error.
-    ;   - Add option to put array elements on one line when exporting JSON text
-    ;   - Write .validate() (use to_obj as a template w/o actually writing to the object)
-    ;   - Write ._default() - Method to reset the JSON export display settings
-    ;   - Speaking of export, should I write an export() function that works like import() but saves?
-    ;   - Add error detection for duplicate keys (this includes keys that differe only in case)
-    ;   - Add last_error property that can store a string saying what the last error was.
-    ;   - Verify all return values
-    ;   - Implemented stripping of string quotation marks on conversion to object
-    
     ;===========================================================================.
     ; Title:        JSON_AHK                                                    |
     ; Desc:         Library that converts JSON to AHK objects and AHK to JSON   |
     ; Author:       0xB0BAFE77                                                  |
     ; Created:      20200301                                                    |
-    ; Last Update:  20211223                                                    |
+    ; Last Update:  20220209                                                    |
     ;==========================================================================='
     
-    /*
-    Rewrite/Updated
+    ; AHK limitations disclaimer
+    ;   - AHK is not a case-sensitive language. Object keys that only differ by case are considered the same key to AHK.
+    ;     There is a built-in duplicate key checker that should catch this.
+    ;   - Arrays are objects in AHK and not their own defined type.
+    ;     This library "assumes" an array by checking 2 things:
+    ;	    If the first key is a 1 or 0
+    ;       Every subsequent key is 1 greater than the last
+    ;     Because arrays are objects, there's no way to tell an empty array from an empty object
+    ;     The property called empty_obj_type that allows you to choose if empty objects export as [] or {}
     
-    Class:
-        json_ahk
-    Methods:
-        to_obj(json_txt)    ; Convert json text to object.
-        to_json(object)     ; Convert object to json text.
-        import()            ; Prompts user to select file then runs json_ahk.to_obj().
-        pretty(json_txt)    ; Formats JSON text so it's human readable.
-        stringify(json_txt) ; Formats JSON text to one line by removing all unnecessary whitespace.
-        validate(json_txt)  ; Validates JSON text.
-        preview()           ; Allows you to see how the json text will look with current settings.
-    Properties:
-        error_last          ; Stores last error to occur. Line 1 = timestamp, 2 = error method, 3 = details
-        error_log           ; Store all errors information.
-        indent_unit         ; Chars used for each level of indentation e.g. "`t" for tab
-                            ; [DEF] "  " = 2 spaces
-        empty_obj           ; AHK cannot distinguish between empty arrays and empty objects.
-                            ; [DEF] True = Export all empties as object {}
-                            ; False = Export all empties as array []
-        
-    */
-    
-    
-    ;=============================================================================================================================================.
-    ; Methods           | Return Value                 | Function                                                                                 |
-    ;-------------------|------------------------------|------------------------------------------------------------------------------------------|
-    ; .to_json(object)  | JSON string or 0 if failed.  | Convert an AHK object to JSON text.                                                      |
-    ; .to_ahk(json)     | AHK object or 0 if failed.   | Convert JSON text to an AHK object.                                                      |
-    ; .stringify(json)  | JSON string or 0 if failed.  | Removes all non-string whitespace.                                                       |
-    ; .validate(json)   | true if valid else false.    | Checks if object or text is valid JSON. Offers basic error correction.                   |
-    ; .import()         | JSON string or 0 if failed.  | Opens a window to select a JSON file.                                                    |
-    ; .preview(p1)      | Always returns blank.        | Preview current JSON export settings. Passing true to p1 will save preview to clipboard. |
-    ; ._default()       |
-    ;============================================================================================================================================='
-    
-    ;=============================================================================================================================================.
-    ; Properties:               | Default | Function                                                                                              |
-    ;---------------------------+---------+-------------------------------------------------------------------------------------------------------|
-    ; .ob_new_line              | true    | Put opening braces/brackets on a new line.                                                            |
-    ; .ob_val_inline            | false   | Indent opening brace to be inline with the values. This setting is ignored when .ob_new_line is true. |
-    ; .ob_brace_val             | false   | First element is put on the same line as the opening brace. Usually used with .ob_val_inline          |
-    ; .cb_new_line              | true    | Put closing braces/brackets on a new line.                                                            |
-    ; .cb_val_inline            | false   | Indent closing brace to be inline with the values. This setting is ignored when .ob_new_line is true. |
-    ; .array_one_line           | true    | Put all array elements on same line.                                                                  |
-    ;---------------------------+---------'-------------------------------------------------------------------------------------------------------'
-    ; Examples:                 |
-    ;---------------------------+-----------------------------------------------------------------------------------------------------------------.
-    ; .ob_val_inline            | True:         "key":                                                                                            |
-    ;                           |                   [                                                                                             |
-    ;                           |                   "value1",                                                                                     |
-    ;                           | False: [DEF]  "key":                                                                                            |
-    ;                           |               [                                                                                                 |
-    ;                           |                   "value1",                                                                                     |
-    ;---------------------------+-----------------------------------------------------------------------------------------------------------------|
-    ; .cb_val_inline            | True:             "value2",                                                                                     |
-    ;                           |                   "value3"                                                                                      |
-    ;                           |                   }                                                                                             |
-    ;                           | False: [DEF]      "value2",                                                                                     |
-    ;                           |                   "value3"                                                                                      |
-    ;                           |               }                                                                                                 |
-    ;---------------------------+-----------------------------------------------------------------------------------------------------------------|
-    ; .array_one_line           | True:         "key": ["value1", "value2"]                                                                       |
-    ;                           | False: [DEF]  "key": [                                                                                          |
-    ;                           |                   "value1",                                                                                     |
-    ;                           |                   "value2"                                                                                      |
-    ;___________________________|_________________________________________________________________________________________________________________|
+    ; Currently working on/to-do:
+    ;   - Need to build a custom error display GUI and implement full error checking.
+    ;     - This should be able to pinpoint the exact spot where the error occurred and why
+    ;     - Edit box will allow for quick manual corrections and resubmissiom for processing
+    ;     - Would like to try and make a smart-fixer for troubleshooting common problems automatically.
+    ;   - Verify all return values
+    ;   - Need to implement preview(). This will use the same custom edit box the error detector will use.
     
     ;==================================================================================================================
     ; AHK to JSON settings         Setting  ;Default| Information
@@ -245,44 +211,44 @@ Class JSON_AHK
             : obj
     }
     
-to_obj_err(index, path, msg_num)
-{
-    msg_list  := {1:{msg:"Duplicate key was found."
-                    ,expct:""}
-                 ,2:{msg:"Error finding valid value."
-                    ,expct:"string number true false null"}
-                 ,3:{msg:"Invalid JSON value."
-                    ,expct:"string number object array true false null"}
-                 ,4:{msg:"Invalid ending character."
-                    ,expct:", ] }"}
-                 ,5:{msg:"Invalid character after start of object."
-                    ,expct:"string }"}
-                 ,6:{msg:"A JSON file must start with a square bracket or a curly brace."
-                    ,expct:"{ ["}
-                 ,7:{msg:"Invalid next variable during parse value."
-                    ,expct:"The end user should never see this message."}
-                 ,8:{msg:"Open array(s) or object(s)."
-                    ,expct:"All open brackets/braces must have an accompanying closing bracket/brace"} }
-    
-    path_full := ""
-    , max     := StrLen(this.jbak)
-    , offset  := this.error_offset
-    
-    For k, v in path
-        path_full .= (A_Index > 1 ? "." : "") v
-    
-    MsgBox, % "Error at index: " index
-        . "`nCharacter: " SubStr(this.jbak, index, 1)
-        . "`nPath: " path_full
-        . "`nError Message: " msg
-        . "`nExpected: " expected
-        . "`n`n" SubStr(this.jbak
-            , (index - offset < 1 ? 1 : index - offset)
-            , (index - offset < 1 ? index-1 : offset))
-        . " >>>" SubStr(this.jbak, index, 1) "<<< "
-        . SubStr(this.jbak, index+1, (index + offset > max ? "" : offset))
-    Return 1
-}
+    to_obj_err(index, path, msg_num)
+    {
+        msg_list  := {1:{msg:"Duplicate key was found."
+                        ,expct:""}
+                    ,2:{msg:"Error finding valid value."
+                        ,expct:"string number true false null"}
+                    ,3:{msg:"Invalid JSON value."
+                        ,expct:"string number object array true false null"}
+                    ,4:{msg:"Invalid ending character."
+                        ,expct:", ] }"}
+                    ,5:{msg:"Invalid character after start of object."
+                        ,expct:"string }"}
+                    ,6:{msg:"A JSON file must start with a square bracket or a curly brace."
+                        ,expct:"{ ["}
+                    ,7:{msg:"Invalid next variable during parse value."
+                        ,expct:"The end user should never see this message."}
+                    ,8:{msg:"Open array(s) or object(s)."
+                        ,expct:"All open brackets/braces must have an accompanying closing bracket/brace"} }
+        
+        path_full := ""
+        , max     := StrLen(this.jbak)
+        , offset  := this.error_offset
+        
+        For k, v in path
+            path_full .= (A_Index > 1 ? "." : "") v
+        
+        MsgBox, % "Error at index: " index
+            . "`nCharacter: " SubStr(this.jbak, index, 1)
+            . "`nPath: " path_full
+            . "`nError Message: " msg
+            . "`nExpected: " expected
+            . "`n`n" SubStr(this.jbak
+                , (index - offset < 1 ? 1 : index - offset)
+                , (index - offset < 1 ? index-1 : offset))
+            . " >>>" SubStr(this.jbak, index, 1) "<<< "
+            . SubStr(this.jbak, index+1, (index + offset > max ? "" : offset))
+        Return 1
+    }
     
     strip_ws(txt)
     {
@@ -1246,3 +1212,7 @@ to_obj_err(index, path, msg_num)
     ;                           |                   "value1",                                                                                     |
     ;                           |                   "value2"                                                                                      |
     ;___________________________|_________________________________________________________________________________________________________________|
+
+
+
+
