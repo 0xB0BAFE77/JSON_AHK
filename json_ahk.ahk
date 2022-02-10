@@ -13,8 +13,8 @@ Rewrite/Updated Version
 |                           | opt = 1 or "stringify" -> returns text with no formatting for portability          ||
 |   validate(json_text)     | Validates JSON text -> returns 1 for valid or 0 for failure                        ||
 |   stringify(json)         | Returns json_text without any formatting                                           ||
-|                           | Both objects and json_text can be passed in                                        ||
-|=== NOT IMPLEMENTED YET ===|====================================================================================||
+|___________________________| Both objects and json_text can be passed in                                        ||
+|____NOT_YET_IMPLEMENTED____|____________________________________________________________________________________||
 |   preview()               | Show preview of current export settings using the built in test file               ||
 |   editor()                | Launch the JSON editor used for troubleshooting                                    ||
 |================================================================================================================||
@@ -68,28 +68,28 @@ Class JSON_AHK
     ;   - Need to implement preview(). This will use the same custom edit box the error detector will use.
     
     ;==================================================================================================================
-    ; AHK to JSON settings         Setting  ;Default| Information
-    ;---------------------------------------;-------+------------------------------------------------------------------
-    Static indent_unit          := "  "     ; "  "  | Chars used for each level of indentation e.g. "`t" for tab
-    Static dupe_key_check       := True     ; True  | True = Check for duplicate keys such as keys that only differ by case
-    ;                                       ;       | False = Ignore key checking
-    Static empty_obj_type       := True     ; True  | True = Empty objects and arrays export as {}
-    ;                                       ;       | False = Empty objects and arrays export as []
-    Static escape_slashes       := True     ; True  | True = Forward slashes will be escaped: \/
-    ;                                       ;       | False = Forward slashes will not be escaped: /
-    Static key_value_inline     := True     ; True  | True = Object values and keys appear on same line
-    ;                                       ;       | False = Object values appear indented below key name
-    Static key_bracket_inline   := False    ; False | True = Brackets are on same line as key
-    ;                                       ;       | False = Brackets are put on line after key
-    Static import_keep_quotes   := True     ; True  | True = When importing JSON text, store string quotes
-    ;                                       ;       | False = When importing JSON text, remove string quotes
-    Static export_add_quotes    := True     ; True  | True = When exporting JSON text, add quotes to strings
-    ;                                       ;       | False = When exporting JSON text, assume all strings are quoted
-    Static error_offset         := 30       ; 30    | Number of characters left and right of caught errors
-    ;-----------------------------------------------+------------------------------------------------------------------
+    ; AHK to JSON settings  | Setting  | Default | Information
+    ;----------------------------------;---------+------------------------------------------------------------------
+    Static indent_unit        := "  "  ; "  "    | Chars used for each level of indentation e.g. "`t" for tab
+    Static dupe_key_check     := True  ; True    | True = Check for duplicate keys such as keys that only differ by case
+    ;                                  ;         | False = Ignore key checking
+    Static empty_obj_type     := True  ; True    | True = Empty objects and arrays export as {}
+    ;                                  ;         | False = Empty objects and arrays export as []
+    Static escape_slashes     := True  ; True    | True = Forward slashes will be escaped: \/
+    ;                                  ;         | False = Forward slashes will not be escaped: /
+    Static key_value_inline   := True  ; True    | True = Object values and keys appear on same line
+    ;                                  ;         | False = Object values appear indented below key name
+    Static key_bracket_inline := False ; False   | True = Brackets are on same line as key
+    ;                                  ;         | False = Brackets are put on line after key
+    Static import_keep_quotes := True  ; True    | True = When importing JSON text, store string quotes
+    ;                                  ;         | False = When importing JSON text, remove string quotes
+    Static export_add_quotes  := True  ; True    | True = When exporting JSON text, add quotes to strings
+    ;                                  ;         | False = When exporting JSON text, assume all strings are quoted
+    Static error_offset       := 30    ; 30      | Number of characters left and right of caught errors
+    ;--------------------------------------------+------------------------------------------------------------------
     ; Maybe list
-    ;Static array_one_line      := False    ; False | True = All array values are put on one line
-    ;                                       ;       | False = Each value is put on a new line
+    ;Static array_one_line    := False ; False | True = All array values are put on one line
+    ;                                    ;       | False = Each value is put on a new line
 
     ;-----------------------------------------------+------------------------------------------------------------------
     
