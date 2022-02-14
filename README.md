@@ -1,106 +1,89 @@
-This is currently in a beta state.  
-The two core methods work [.to_ahk() .to_json()], but there's a lot of stuff I'm still working on [error checking, error correction, etc.].
-
 # JSON_AHK
 
-This is an AHK library that provides JSON support.  
-json_ahk is able to convert JSON text into a valid AHK object as well as converting AHK object into JSON text.
+Update: 08Feb2022
+It's been a while but I've finally resumed work on JSON_AHK.  
+It's in a mostly working state.
+I'm in the process of creating a battery of error testing scenarios.  
+This ReadMe is under active development, too.
 
-This library comes with multiple methods as well as quite a few properties that can be set to customize your JSON text output.  
-Some people want all elements of an array on one line, some wan't them on separate lines.  
-Some people want the opening brace/bracket on the same line as the key. Some don't.
-Some people just want their entire json on one line.  
-You can do all of that with this library.  
-The properties section below contains a list of all the properties and examples of what each does.
+#Table of Contents
 
-It should be noted that this library does suffer from some limitations imposed by the AHK language.
-Known issues:
-* AHK is a case-insensitive language. If any key-pair values differ only by their letter case, AHK considers them the same key.  
-  Example: These keys are identical {"ALPHA":"WORDS", "alpha":"words"}  
-  I'm trying to figure a way to overcome this limitation. Until then, I'll add a warning on duplicate keys.  
-* All arrays in AHK are objects. Because they are no differentiated in AHK, this library has to make assumptions based on index.  
-  Because of that, empty JSON arrays `[]` will always export as empty objects `{}`.  
-  I have not come up with a way around this as it's core to the langauge.
+   1. Description and Information
+   2. Known Limitations
+   3. Methods and Properties
 
+## 1) Description and Information
 
-## Methods  
+This is an AHK library I designed from th ground up to give AutoHotkey the ability to work with JSON files.  
+This library allows for conversion of JSON text to AHK object, from object to JSON text, and has quite a few other bells and whistles (covered below).  
+It has basic object and json conversions as well as many preferences (covered below).
 
-| Methods           | Return Value                 | Function                                                                                 |
-|:------------------|:-----------------------------|:-----------------------------------------------------------------------------------------|
-| .to_json(object)  | JSON string or 0 if failed.  | Convert an AHK object to JSON text.                                                      |
-| .to_ahk(json)     | AHK object or 0 if failed.   | Convert JSON text to an AHK object.                                                      |
-| .stringify(json)  | JSON string or 0 if failed.  | Removes all non-string whitespace.                                                       |
-| .validate(json)   | true if valid else false.    | Checks if object or text is valid JSON. Offers basic error correction.                   |
-| .import()         | JSON string or 0 if failed.  | Opens a window to select a JSON file.                                                    |
-| .preview(p1)      | Always returns blank.        | Preview current JSON export settings. Passing true to p1 will save preview to clipboard. |
+Why create it if a JSON library already exists?
+I created this library after realizing there is not a JSON lib for AHK that works correctly.
+Initially, I tried Coco's library. And it does work...mostly.  
+I grew concerned when it failed to validate multiple numbers in a JSON test file.
+After realizing that, I decided to write my own validator. Not only to ensure ALL data validates correctly, but also to see if I could increase the performance speed and efficiency of the process as much as possible while keeping it all native to AHK.  
+This new library runs x2 faster than Coco's, appears to validate all data types correctly (still running tests), and has a bunch of configuration and customization features added to it, handled all through changing properties.
 
-## Properties 
+## 2) Known Limitations
 
-| Property        | Default | Function                                                                                              |
-|:----------------|:--------|:------------------------------------------------------------------------------------------------------|
-| .indent_unit    | `t      | Assign indentation. Can be any amount of spaces, tabs, linefeeds or carriage returns.                 |
-| .no_brace_ws    | true    | Removes whitespace from empty objects.                                                                |
-| .no_braces      | true    | Removes all braces and brackets from the JSON text export.                                            |
-| .ob_new_line    | true    | Put opening braces/brackets on a new line.                                                            |
-| .ob_val_inline  | false   | Indent opening brace to be inline with the values. This setting is ignored when .ob_new_line is true. |
-| .ob_brace_val   | false   | First element is put on the same line as the opening brace. Usually used with .ob_val_inline          |
-| .cb_new_line    | true    | Put closing braces/brackets on a new line.                                                            |
-| .cb_val_inline  | false   | Indent closing brace to be inline with the values. This setting is ignored when .ob_new_line is true. |
-| .array_one_line | true    | Put all array elements on same line.                                                                  |
+- **AutoHotkey is not case-sensitive!**
+  - That means AHK objects cannot have keys that only differ by case.
+  - There is a duplicate key checker that notifies you of a duplicate key.
 
-### Property Examples:
+- **AutoHotkey does not have an array data type**
+  - In AutoHotkey, arrays are just numerically indexed objects.
+  - This library "assumes" that an object is of array type if:
+    - All keys are numeric
+    - The first key is a 1
+    - Each subsequent key is 1 greater than the last
+
+- **Because arrays are objects, there is no way to differentiate between empty arrays and empty objects**
+  - This library forces all empty arrays and objects to export as one type, set by the empty_obj_type property.
+  - The empty_obj_type property lets you choose if you want all empty items to export as ojects {} or arrays []
+
+## 3) Methods and Properties
 
 ```
-------------------.---------------------------------------------
- .no_brace_ws     | True: [DEF]   {},
-                  | False:        {        },
-------------------+---------------------------------------------
- .ob_new_line     | True: [DEF]   "key":
-                  |               [
-                  |                   "value",
-                  | False:        "key": [
-                  |                   "value",
-------------------+---------------------------------------------
-  .ob_val_inline  | True:         "key":
-                  |                   [
-                  |                   "value1",
-                  | False: [DEF]  "key":
-                  |               [
-                  |                   "value1",
-------------------+---------------------------------------------
-  .ob_brace_val   | True:         "key":
-                  |                   ["value1",
-                  |                   "value2",
-                  | False: [DEF]  "key":
-                  |                   [
-                  |                   "value1",
-                  |                   "value2",
-------------------+---------------------------------------------
-  .cb_new_line    | True: [DEF]       "value2",
-                  |                   "value3"
-                  |               }
-                  | False:            "value2",
-                  |                   "value3"}
-------------------+---------------------------------------------
-  .cb_val_inline  | True:             "value2",
-                  |                   "value3"
-                  |                   }
-                  | False: [DEF]      "value2",
-                  |                   "value3"
-                  |               }
-------------------+---------------------------------------------
-  .array_one_line | True:         "key": ["value1", "value2"]
-                  | False: [DEF]  "key": [
-                  |                   "value1",
-                  |                   "value2"
-__________________|_____________________________________________
+  _________________
+ / Class: json_ahk \__________________________________________________________________________________________________
+/__________________/_________________________________________________________________________________________________/|
+|_Methods:________________|_Description and return values____________________________________________________________||
+|  import()               | GUI prompt to select file. Return JSON text or 0 on fail.                                ||
+|  import_to_obj()        | GUI prompt to select file. Return converted object or 0 on fail.                         ||
+|  to_obj(json_text)      | Convert JSON text to an AHK object. Return object or 0 on fail.                          ||
+|  to_json(obj, opt:="")  | Convert AHK object to JSON text. Fail returns 0.                                         ||
+|                         | opt = 0 OR "pretty" -> Text is formatted for human readability.                          ||
+|                         | opt = 1 OR "stringify" -> No formatting or padding. Output is on 1 line for portability. ||
+|  validate(json_text)    | Validate JSON text -> Return 1 for valid or 0 on fail.                                   ||
+|  pretty(json_in)        | Returns formatted (readable) JSON text or 0 on fail.                                     ||
+|                         | json_in can be JSON text or an AHK object.                                               ||
+|  stringify(json_in)     | Returns JSON text on 1 line with no formatting or 0 on fail.                             ||
+|                         | json_in can be JSON text or an AHK object.                                               ||
+|___NOT_YET_IMPLEMENTED___|__________________________________________________________________________________________||
+|   preview()             | Show preview of current export settings using built-in test file.                        ||
+|   editor()              | Launch JSON editor designed for troubleshooting.                                         ||
+|____________________________________________________________________________________________________________________||
+|====================================================================================================================||
+|_Properties:__________|_Default_|_Description_______________________________________________________________________||
+|  error_last          |         | Store information about last error                                                ||
+|  error_log           |         | Store all errors this session                                                     ||
+|  indent_unit         |  "  "   | Chars used for each level of indentation e.g. "`t" =tab, "  " = 2 spaces, etc.    ||
+|  dupe_key_check      |  True   | True -> checks for duplicate keys, false -> ignore checking                       ||
+|  error_offset        |  30     | Number of characters left and right of caught errors                              ||
+|  import_keep_quotes  |  True   | True  -> Keep string quotes when importing JSON text.                             ||
+|                      |         | False -> Remove string quotes when importing JSON text.                           ||
+|  export_add_quotes   |  True   | True  -> Add quotes to strings when exporting JSON text.                          ||
+|                      |         | False -> Assume all strings are quoted when exporting JSON text.                  ||
+|  empty_obj_type      |  True   | True  -> {}          Empty objects/arrays export as {}                            ||
+|                      |         | False -> []          Empty objects and arrays export as []                        ||
+|  escape_slashes      |  True   | True  -> \/          Forward slashes will be escaped: \/                          ||
+|                      |         | False -> /           Forward slashes will not be escaped: /                       ||
+|  key_bracket_inline  |  False  | True  -> key: {      Brackets are on same line as key                             ||
+|                      |         | False -> key:        Brackets are put on line after key                           ||
+|                      |         |          {                                                                        ||
+|  key_value_inline    |  True   | True  -> key: value  Object values and keys appear on same line                   ||
+|                      |         | False -> key:        Object values appear indented below key name                 ||
+|                      |         |            value                                                                  ||
+|______________________|_________|___________________________________________________________________________________|/
 ```
-
-## Changelog
-  - Fixed all issues with .to_ahk() and .to_json()
-    Library works on a basic level now and can be used. :)
-  - Added: .preview() method
-  - Updated comment info
-  - Added: esc_slash property
-  - Fixed: Empty brace checking
-  - Massive update to README file
