@@ -1,18 +1,37 @@
-
 {
 	"key_01_string": "String",
 	"key_02_number": -1.05e+100,
-	"key_03_array_true_false_null":[true, false, null],
+	"key_03_array_true_false_null": [true, false, null],
 	"key_04_object_all_number_types":
 	{
-		"Integer": 1234567890,
-		"Integer negative": -420,
-		"Fraction/decimal": 98.6,
-		"Fraction starting with 0": 0.987654321,
-		"Exponent": 987e123,
-		"Exponent negative": -1e-999,
-		"Exponent positive": 11e+111,
-		"Mix of all": -3.14159e+100
+		"zero":
+		{
+			"pos_zero": 0,
+			"neg_zero": -0
+		},
+		"integer":
+		{
+			"pos_integer": 186282,
+			"neg_integer": -1000000000000066600000000000001
+		},
+		"decimal":
+		{
+			"pos_decimal": 3.14159,
+			"neg_decimal": -1.618,
+			"pos_zero_decimal": 0.57721,
+			"neg_zero_decimal": -0.0
+		},
+		"exponent":
+		{
+			"pos_int_no_sign_E": 43252003274489856E3,
+			"neg_int_no_sign_E": -19e1,
+			"neg_dec_pos_e": -0.271828e+1,
+			"pos_dec_neg_e": 6.626068e-34,
+			"neg_dec_neg_E": -130000000000.0E-10,
+			"pos_dec_pos_E": 867530900000.0E-5
+		},
+		"_fun_numbers":
+			"light, belphegor, golden, e. constant, rubiks cube, 3 stooges, e. number, p. constant, my fave, jenny"
 	},
 	"key_05_string_stuff":
 	{
@@ -20,11 +39,12 @@
 		"alpha lower": "abcdefghijklmnopqrstuvwxyz",
 		"Specials Chars": "!@#$%^&*()_+-=[]{}<>,./?;':",
 		"Digits - Value": "0123456789",
-		"0123456789": "Digits - Key",
-		"key_case_check": "key_case_check all lower",
-		"KEY_CASE_CHECK": "KEY_CASE_CHECK ALL UPPER",
+		"0123456789": "Digits As Key",
+		"key_case_check": "all lower",
+		"KEY_CASE_CHECK": "ALL UPPER",
 		"JSON text as value": "{\"array - str num tfn\": [\"string\", 3.14, true, false, null]}",
 		"Quotation Marks": "&#34; \u0022 `%22 0x22 034 &#x22;",
+		"Code comment symbols": "\/\/ \/* *\/ <!-- --> ; # rem ' C {- =begin =end -- --[[ ]] % (* \"\"\" ```",
 		"Escape Characters":
 		{
 			"ESC_01 Quotation Mark": "\"",
@@ -35,12 +55,12 @@
 			"ESC_06 Linefeed": "\n",
 			"ESC_07 Carriage Return": "\r",
 			"ESC_08 Horizontal Tab": "\t",
-			"ESC_09 Unicode": "\u00AF\\_(\u30C4)_\/\u00AF",
+			"ESC_09 Unicode": "\u00AF\\_(\u30C4)_\/\u00AF \uB0BA\ufe77",
 			"ESC_10 All": "\\\/\"\b\f\n\r\t\u0033",
 			"ESC_11 \/\t\u0033\t\/": "Key with Encodes"
 		}
 	},
-	"key_06_nested_arrays":
+	"key_06_matrix_aka_nested_arrays":
 	[
 		[0, 1, 2],
 		[0, 1, 2],
@@ -83,34 +103,41 @@
 			"msrp": 26995.00
 		}
 	},
-	"key_08_empty":
+	"key_08_empty_things":
 	{
-		"Empty Value": "",
-		"": "Empty Key",
-		"Empty Array": [],
-		"Empty Object": {}
+		"object": {},
+		"array": [],
+		"string": "",
+		"promises": true
 	},
 	"key_09_spacing":
 	{
-		"compact":[1,2,3,4,"a","b","c","d"],
-		"expanded":
+		"1_valid JSON whitespace":
 		[
-			"This ",                      "is"  			          ,"considered"
-						,"valid ",				    "spacing.\n",
-			"JSON ",
-				"only ",
-					"cares ",
-						"about ",
-							"whitespace ",
-								"inside ",
-									"of ",
-										"strings."
-											],
-		"valid JSON whitespace":
-					["Space",
-				"Linefeed",
-			"Carriage Return",
-		"Horizontal Tab"]
-	},
-	"key_10_code_comments": ["C", "REM", "::", "NB.", "#", "%", "//", "'", "!", ";", "--", "*", "||", "*>"]
+            "Spaces before this value. Linefeed after.",
+			"Tabs before this value. Carriage return after.",
+			"This line ends in both a CR and LF."
+		],
+		"2_compact_written":[1,2,3,4,"a","b","c","d"],
+		"3_pretty_formatting" :
+		[   0,1,2,3,4,
+			 0,1,2,3,
+			  0,1,2,
+			   0,1,
+				0 ],
+		"4_All_Over" :
+		[
+"This ",                     "is"                          ,"considered"
+,
+"valid "
+                                ,"spacing. ","JSON "                   ,
+                                                                 "only "
+                                                                       ,
+                                                               "cares ",
+"about ",                    "whitespace ",
+                  "inside ",                           "of ",
+                            "strings.",
+        "But seriously, don't format JSON like this :P"]
+    },
+    "key_10": "End of JSON file!"
 }
