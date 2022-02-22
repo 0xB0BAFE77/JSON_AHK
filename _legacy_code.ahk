@@ -1,6 +1,31 @@
 ; Gobs of old code and different things I've tried over the course of writing JSON_AHK
 
 /*
+    ; RegEx Bank (Kudos to mateon1 at regex101.com. His string/key regex was written way better than mine.)
+    Static rgx	    :=  {"k" : "(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))[ ]*:[ ]*" ; key
+                        ,"s" : "(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))[ ]*"      ; string
+                        ,"n" : "(?P<str>(?>-?(?>0|[1-9][0-9]*)(?>\.[0-9]+)?(?>[eE][+-]?[0-9]+)?))[ ]*"                  ; number
+                        ,"b" : "(?P<str>true|false|null)[ ]*"                                                           ; bool
+                        ,"b2": "^(?P<str>true|false|null)$"                                                             ; bool|null strict
+                        ,"s2": "(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))"          ; string strict
+                        ,"n2": "^(?P<str>(?>-?(?>0|[1-9][0-9]*)(?>\.[0-9]+)?(?>[eE][+-]?[0-9]+)?))$"}                   ; number strict
+    
+    ; Used to sort through values when parsing
+    Static is_val   :=  {"0":"n" ,"5":"n" ,0:"n" ,5:"n" , "-":"n"       ; s = string
+                        ,"1":"n" ,"6":"n" ,1:"n" ,6:"n" , "t":"b"       ; n = number
+                        ,"2":"n" ,"7":"n" ,2:"n" ,7:"n" , "f":"b"       ; b = bool = true/false/null
+                        ,"3":"n" ,"8":"n" ,3:"n" ,8:"n" , "n":"b"       ; Yes, I realize null is not bool
+                        ,"4":"n" ,"9":"n" ,4:"n" ,9:"n" ,"""":"s"}
+
+
+
+
+
+
+
+
+
+/*
     ;~ ; Convert AHK object to JSON string
     ;~ to_json(obj) {
         ;~ ; User settings for forward slash escaping
