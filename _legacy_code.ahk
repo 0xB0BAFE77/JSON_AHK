@@ -1,6 +1,121 @@
 ; Gobs of old code and different things I've tried over the course of writing JSON_AHK
 
-/*
+
+/* 
+My first attempt at a parse loop based parser
+to_obj(jtxt, valid:=0)
+{
+    Local
+    _key    :=  {0:"n" ,5:"n" , "-":"n"      ; s = string
+                ,1:"n" ,6:"n" , "t":"b"      ; n = number
+                ,2:"n" ,7:"n" , "f":"b"      ; b = bool
+                ,3:"n" ,8:"n" , "n":"x"      ; x = null
+                ,4:"n" ,9:"n" ,"""":"s" }
+    , _tfn  :=  {t:1   , f:0  ,   n:Chr(0) } ; Converts true/false/null when needed
+    , rgx   :=  { "s": "(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*"")) *"
+                , "k": "(?P<str>(?>""(?>\\(?>[\\""\/bfnrt]|u[0-9A-Fa-f]{4})|[^""\\\0-\x1F\x7F]+)*"")) *: *"
+                , "n": "(?P<str>(?>-?(?>0|[1-9][0-9]*)(?>\.[0-9]+)?(?>[eE][+-]?[0-9]+)?)) *"
+                , "b": "(?P<str>true|false)? *"
+                , "x": "(?P<str>null) *"
+                ,"ss": "(?P<str>(?>""(?>\\(?>[\\""\/bfnrt]|u[0-9A-Fa-f]{4})|[^""\\\0-\x1F\x7F]+)*""))"
+                ,"sn": "(?P<str>(?>-?(?>0|[1-9][0-9]*)(?>\.[0-9]+)?(?>[eE][+-]?[0-9]+)?))"
+                ,"sb": "(?P<str>true|false)"
+                ,"sv": "(?P<str>null)"
+                ,"sp": "P) +"
+                ,"ws": "P)[ |\t|\n|\r]*"}
+    , snbx := """tf0123456789-n"
+     
+      this.jbak := jtxt                             ; Save raw input
+    , this.json := this.strip_ws(jtxt)              ; Strip all `t`r`n & remove surrounding spaces
+    , max       := StrLen(this.json)-1              ; Total letters in json text
+    , this.ia   := []                               ; Track if currently in array
+    , this.jp   := []                               ; Path of current JSON value
+    , this.jp.Push("json")                          ; Set starting path to json and update path index
+    , next      := "v"
+    , idx       := 0                                ; Tracks position in JSON text
+    , err       := 0                                ; Track if error occurs
+    , mt        := 0                                ; Track if current arr/obj is empty
+    , m_        := ""                               ; Store regex matches
+    , m_str     := ""                               ; Store regex sub-pattern
+    , obj       := {}                               ; Container for JSON
+    , obj[this.jp*] := {}                           ; Base of JSON object to be returned
+    , obj[this.jp*].SetCapacity(100)                ; Speeds up building
+    Clipboard := this.json
+    Loop
+    {
+        ((char := SubStr(this.json, ++idx, 1)) == " ")                                                                                       ; Get char and if char is a space
+            ? "" ; (RegExMatch(this.json, "SP)^.{" idx-1 "} +", m_), idx := m_)                                     ; Match all spaces and inc index
+        : next == "v"                                                                                           ; Else if value expected
+            ? InStr("{[", char)                                                                                 ; If char is is a new arr/obj
+                ? (this.obj[this.jp*] := {}, mt := 1                                                                                
+                    , char == "{" ? next := "k"                                                                 ; Else if new object, get key
+                    : (next := "v", this.ia[this.jp.Push(1)] := 1 ) )                                           ; Else new array, get value and update path/ia stuff
+            : RegExMatch(this.json, "S)^.{" idx-1 "}" rgx[_key[char]], m_)                                      ; If new value, save to m_str
+                ? (next := "e", idx := StrLen(m_)                                                        ; Next ender, update index
+                    , obj[this.jp*] := (char == """" ? this.json_decode(m_str)                                  ; and save value to obj. encode if str
+                    : InStr("tfn", char) ? this.convert_tfn_in ? _tfn[char] : m_str                             ; convert (pref) and save tfn
+                    : m_str) )                                                                                  ; or save num
+            : ((char == "]") && mt) ? (next := "e", mt := 0, idx--)                                            
+            : err := this.to_obj_err(3, idx)                                                                             ; Bad value error
+        : next == "k"                                                                                           ; Else if expecting key
+            ? (RegExMatch(this.json, "S)^.{" idx-1 "}" rgx.k, m_))                               ; If a key is matched
+                ? (this.dupe_key_check && !this.to_obj_dupe_check(obj, m_str))                                  ; Dupe check (pref)
+                    ? err := this.to_obj_err(1, idx)                                                                 ; If key fix isn't accepted, error out
+                : (this.ia[this.jp.Push(this.json_decode(m_str))] := 0                                          ; Else decode and add key, set is array to false
+                    , idx := StrLen(m_), next := "v" )                                                   ; Inc index and expect another value
+            : ((char == "}") && mt) ? (next := "e", mt := 0)
+            : err := this.to_obj_err(5, idx)                                                                             ; If no key matched, error out
+        : next == "e"                                                                                               ; Else if expecting ender (comma or end of obj/arr)
+            ? char == ","                                                                                           ; If comma, another value is expected
+                ? this.ia[this.jp.MaxIndex()] ? (this.jp[this.jp.MaxIndex()]++, next := "v")                        ; If in array, inc path index
+                : (this.jp.Pop(), next := "k")                                                                      ; Else object, remove key, dec pi, and get a new key
+            : ((char == "]" &&  this.ia[this.jp.MaxIndex()])
+            || (char == "}" && !this.ia[this.jp.MaxIndex()]))                                       ; If not comma, check if in arr/obj and if correct ender
+                ? this.jp.Pop()                                                                     ; Remove key, dec pi, and inc index
+            : err := this.to_obj_err(4, idx)                                                             ; Else ender error
+        : err := this.msg("sheet!")
+        
+        ;if (this.jp.1 != "json")
+        ;    this.msg("path: " this.extract_path(this.jp) "`nidx: " idx)
+        ;
+        ;If (idx > 4560)
+        ;this.msg("char: " char "`nidx: " idx "`nnext: " next "`nm_: " m_ "`nm_str: " m_str "`nmt: " mt
+        ;    . "`nmax: " max "`nthis.jp: " this.extract_path(this.jp) 
+        ;    . "`nthis.ia[this.jp.MaxIndex()]: " this.ia[this.jp.MaxIndex()] 
+        ;    . "`nerr: " err "`n`n" this.quick_view(obj, 1))
+    }Until (idx > max)                                        ; Loop until index is false (blank)
+    
+    If this.jp.HasKey(2)
+        MsgBox, % "There are unfinished objects remaining.`n`npath: " this.extract_path(this.jp)
+    If (this.jp.1 != "json")
+        MsgBox, % "There were too many closing brackets/braces.`n`npath: " this.extract_path(this.jp)
+    
+    ;clipboard := this.quick_view(obj)
+    
+    Return (this.err > 0)    ? 0                                                                    ; Return 0 if any errors
+         : (valid)           ? 1                                                                    ; Return 1 if only validating
+         :                     obj.json                                                             ; Else return object
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* OG regex bank from when I was messing with a regex based parser
     ; RegEx Bank (Kudos to mateon1 at regex101.com. His string/key regex was written way better than mine.)
     Static rgx	    :=  {"k" : "(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))[ ]*:[ ]*" ; key
                         ,"s" : "(?P<str>(?>""(?>\\(?>[""\\\/bfnrt]|u[a-fA-F0-9]{4})|[^""\\\0-\x1F\x7F]+)*""))[ ]*"      ; string
@@ -800,4 +915,5 @@
     ;                           |                   "value1",                                                                                     |
     ;                           |                   "value2"                                                                                      |
     ;___________________________|_________________________________________________________________________________________________________________|
+
 
