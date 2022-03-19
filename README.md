@@ -129,11 +129,9 @@ To use a reviver, make a function and give it 4 parameters to receive from the p
 The key name can be used to find specific data.  
 Value is the raw text from the JSON file. No conversion is done. This is always string coming in. Which brings us to...  
 Value type! This is how you know what data type the value is. It'll always be one of the following
-   - s = String
-   - \# = Number
-   - t = true
-   - f = false
-   - n = null
+   - s   = String
+   - n   = Number
+   - tfn = true/false/null
 
 And Remove is used to omit the current value from the object.  
 So `Return p4_remove` would prevent the current key:value pair from ever being added.
