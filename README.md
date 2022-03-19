@@ -118,10 +118,10 @@ reviver_func(key, val, type, rem) {
 }
 ```
 
-A reviver lets the user interface with the parser during run time.  
-You're given the ability to see every key:value pair as it's parsed.  
-The reviver allows you to make changes to the data or flat out omit it from the obj.  
-It's designed to work similarly to JavaScript's parse(json, reviver) function.
+A reviver lets the user interact with/"tap into" the parser during run time.  
+Using a reviver function, you're given the ability to see every key:value pair as well as the value's type (string/number/true/false/null).  
+The reviver allows you to make alter or omit the data from the object being built.  
+It's designed to work similarly to JavaScript's `parse(json, reviver)`.
 
 To use a reviver, make a function and give it 4 parameters to receive from the parser.  
 `reviver_func(p1_key, p2_value, p3_value_type, p4_remove)`
@@ -208,7 +208,7 @@ But when I tested it, I grew concerned. It worked...mostly. But certain valid nu
 Those number errors didn't really affect me, but it *bothered* me.  
 "Why would a library created to work with JSON text **not** validate a valid number?"
 This bugged me more than it should have.  
-I started wondering if I could make a parser. Not only that, but make one from the ground up. From scrathc.
+I started wondering if I could make a parser. Not only that, but make one from the ground up. From scratch.
 Was I capable of doing so? And if so, could I make a faster? More robust?
 
 I started consuming everything JSON related.
